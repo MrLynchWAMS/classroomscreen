@@ -4,8 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Modern Classroom Board</title>
-    <link rel="icon"
-        href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📺</text></svg>">
     
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -103,6 +101,9 @@
     <!-- Workspace Container (Widgets go here) -->
     <div id="workspace" class="absolute inset-0 z-10 overflow-hidden pointer-events-none"></div>
 
+    <!-- Global Drawing Canvas -->
+    <canvas id="global-canvas" class="absolute inset-0 z-20 pointer-events-none"></canvas>
+
     <!-- Top Command Panel -->
     <div class="absolute top-6 left-6 right-6 flex items-center justify-between z-30 pointer-events-auto">
         <div class="flex items-center space-x-2 bg-white/10 backdrop-blur-xl border border-white/20 p-1.5 rounded-2xl shadow-lg text-white">
@@ -149,6 +150,32 @@
         <div id="bg-grid" class="grid grid-cols-3 gap-2">
             <!-- Populated via JS -->
         </div>
+        <div class="mt-4 pt-3 border-t border-zinc-200">
+            <p class="text-[10px] font-bold text-zinc-500 uppercase mb-2">Custom Image/GIF URL</p>
+            <div class="flex space-x-2">
+                <input type="text" id="custom-bg-input" class="flex-grow bg-zinc-100 border border-zinc-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-400" placeholder="https://...">
+                <button id="custom-bg-apply" class="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-colors">Apply</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Draw Mode Toolbar -->
+    <div id="draw-toolbar" class="hidden absolute bottom-8 left-1/2 transform -translate-x-1/2 z-40 bg-zinc-900/95 backdrop-blur-xl shadow-2xl rounded-2xl px-6 py-3 flex items-center space-x-4 border border-zinc-700">
+        <div class="text-xs font-bold text-teal-400 uppercase tracking-widest flex items-center space-x-2 mr-2">
+            <i data-lucide="pen-tool" class="w-4 h-4"></i> <span class="hidden sm:inline">Draw Mode</span>
+        </div>
+        <div class="flex space-x-2" id="global-colors">
+            <button data-c="#ef4444" class="w-6 h-6 rounded-full bg-red-500 border-2 border-transparent border-white scale-110 shadow-md transition-transform"></button>
+            <button data-c="#3b82f6" class="w-6 h-6 rounded-full bg-blue-500 border-2 border-transparent transition-transform"></button>
+            <button data-c="#10b981" class="w-6 h-6 rounded-full bg-emerald-500 border-2 border-transparent transition-transform"></button>
+            <button data-c="#f59e0b" class="w-6 h-6 rounded-full bg-amber-500 border-2 border-transparent transition-transform"></button>
+            <button data-c="#ffffff" class="w-6 h-6 rounded-full bg-white border-2 border-transparent transition-transform"></button>
+        </div>
+        <div class="w-px h-6 bg-zinc-700 mx-1"></div>
+        <button id="global-undo" class="text-zinc-400 hover:text-white px-2 py-1 text-xs font-bold uppercase transition-colors">Undo</button>
+        <button id="global-clear" class="text-red-400 hover:text-red-300 px-2 py-1 text-xs font-bold uppercase transition-colors">Clear</button>
+        <div class="w-px h-6 bg-zinc-700 mx-1"></div>
+        <button id="global-exit" class="bg-zinc-700 hover:bg-zinc-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold uppercase transition-all">Done</button>
     </div>
 
     <!-- Bottom Dock -->
@@ -238,6 +265,7 @@
             widgets: [], // { id, type, x, y, w, h, data }
             theme: 'glass',
             background: BACKGROUNDS[0],
+            globalPaths: [],
             maxZ: 100
         };
 
@@ -298,6 +326,10 @@
                 const saved = JSON.parse(decodeURIComponent(atob(hash)));
                 if (saved.theme) setTheme(saved.theme);
                 if (saved.background) applyBackground(saved.background);
+                if (saved.globalPaths) {
+                    State.globalPaths = saved.globalPaths;
+                    redrawGlobal();
+                }
                 if (saved.widgets && Array.isArray(saved.widgets)) {
                     saved.widgets.forEach(w => addWidgetToDOM(w, true));
                 }
@@ -357,6 +389,17 @@
                 btn.onclick = () => applyBackground(bg);
                 grid.appendChild(btn);
             });
+
+            // Custom Background Handler
+            document.getElementById('custom-bg-apply').addEventListener('click', () => {
+                const url = document.getElementById('custom-bg-input').value.trim();
+                if (url) {
+                    const customBg = { id: 'custom', type: 'image', url: url };
+                    applyBackground(customBg);
+                    document.getElementById('custom-bg-input').value = '';
+                    document.getElementById('bg-panel').classList.add('hidden');
+                }
+            });
         }
 
         function applyBackground(bg) {
@@ -396,6 +439,11 @@
         });
 
         function spawnWidget(type) {
+            if (type === 'draw') {
+                toggleDrawMode();
+                return;
+            }
+
             const defaults = {
                 clock: { w: 300, h: 220 },
                 timer: { w: 320, h: 320 },
@@ -557,7 +605,6 @@
                 case 'timetable': return renderTimetable(widget, container);
                 case 'symbols': return renderSymbols(widget, container);
                 case 'text': return renderText(widget, container);
-                case 'draw': return renderDraw(widget, container);
             }
         }
 
@@ -940,15 +987,15 @@
 
         // --- 6. TEXT WIDGET ---
         function renderText(widget, container) {
-            let fs = widget.data.fontSize || 18;
+            let baseSize = widget.data.baseSize || 18;
             let align = widget.data.alignment || 'left';
 
             container.innerHTML = `
                 <div class="flex flex-col h-full w-full justify-between">
                     <div class="flex items-center justify-between mb-3 border-b border-black/10 pb-2 text-[10px] font-bold uppercase tracking-wider opacity-60">
                         <div class="flex items-center space-x-2">
-                            <span>Size:</span>
-                            <input type="range" id="fs-${widget.id}" min="12" max="48" value="${fs}" class="w-16">
+                            <span>Base Size:</span>
+                            <input type="range" id="fs-${widget.id}" min="12" max="48" value="${baseSize}" class="w-16">
                         </div>
                         <div class="flex space-x-1" id="align-${widget.id}">
                             <button data-align="left" class="px-1.5 py-1 rounded hover:bg-black/10 ${align==='left'?'bg-black/10':''}"><i data-lucide="align-left" class="w-3 h-3"></i></button>
@@ -962,15 +1009,21 @@
 
             const txt = container.querySelector(`#txt-${widget.id}`);
             txt.value = widget.data.text || "";
-            txt.style.fontSize = `${fs}px`;
             txt.style.textAlign = align;
+
+            function updateSize() {
+                // Scale text proportionally to the width of the widget (default width is 400)
+                const scale = widget.w / 400;
+                const calculatedSize = Math.max(10, baseSize * scale);
+                txt.style.fontSize = `${calculatedSize}px`;
+            }
 
             txt.addEventListener('input', (e) => widget.data.text = e.target.value);
 
             container.querySelector(`#fs-${widget.id}`).addEventListener('input', (e) => {
-                fs = e.target.value;
-                txt.style.fontSize = `${fs}px`;
-                widget.data.fontSize = fs;
+                baseSize = e.target.value;
+                widget.data.baseSize = baseSize;
+                updateSize();
             });
 
             const alignBtns = container.querySelectorAll(`#align-${widget.id} button`);
@@ -984,121 +1037,116 @@
                 };
             });
 
+            // Bind to the resize hook we set up in the widget wrapper
+            widget.onResize = updateSize;
+            updateSize(); // Apply initial size
+
             return null;
         }
 
-        // --- 7. DRAWING CANVAS ---
-        function renderDraw(widget, container) {
-            let color = '#ffffff';
-            if (State.theme === 'light') color = '#000000';
-            
-            let brushSize = 4;
-            let paths = widget.data.paths || [];
-            let currentPath = null;
-            let isDrawing = false;
+        // ==========================================
+        // GLOBAL DRAWING (ANNOTATION MODE)
+        // ==========================================
+        const globalCanvas = document.getElementById('global-canvas');
+        const globalCtx = globalCanvas.getContext('2d');
+        const drawToolbar = document.getElementById('draw-toolbar');
+        const bottomDock = document.getElementById('bottom-dock');
 
-            container.innerHTML = `
-                <div class="flex flex-col items-center h-full justify-between">
-                    <div class="flex w-full justify-between items-center mb-2">
-                        <div class="flex space-x-1.5" id="colors-${widget.id}">
-                            ${['#ffffff', '#000000', '#ef4444', '#3b82f6', '#10b981', '#f59e0b'].map(c => 
-                                `<button data-c="${c}" class="w-5 h-5 rounded-full border-2 border-transparent transition-transform hover:scale-110" style="background:${c}; ${c==='#ffffff'?'border-color:#ccc':''}"></button>`
-                            ).join('')}
-                        </div>
-                        <div class="flex space-x-2 text-[10px] font-bold uppercase tracking-wider">
-                            <button id="undo-${widget.id}" class="px-2 py-1 bg-black/5 hover:bg-black/10 rounded">Undo</button>
-                            <button id="clear-${widget.id}" class="px-2 py-1 text-red-500 hover:bg-red-500/10 rounded">Clear</button>
-                        </div>
-                    </div>
-                    <div class="relative w-full flex-grow bg-black/5 rounded-2xl overflow-hidden border border-black/10">
-                        <canvas id="cvs-${widget.id}" class="absolute inset-0 w-full h-full cursor-crosshair touch-none"></canvas>
-                    </div>
-                </div>
-            `;
+        let isDrawMode = false;
+        let isGlobalDrawing = false;
+        let globalColor = '#ef4444';
+        let currentGlobalPath = null;
 
-            const canvas = container.querySelector(`#cvs-${widget.id}`);
-            const ctx = canvas.getContext('2d');
+        function syncGlobalCanvas() {
+            globalCanvas.width = window.innerWidth;
+            globalCanvas.height = window.innerHeight;
+            redrawGlobal();
+        }
+        window.addEventListener('resize', syncGlobalCanvas);
+        setTimeout(syncGlobalCanvas, 100);
 
-            function syncCanvasSize() {
-                const rect = canvas.parentElement.getBoundingClientRect();
-                if(canvas.width !== rect.width || canvas.height !== rect.height) {
-                    canvas.width = rect.width;
-                    canvas.height = rect.height;
-                    redraw();
-                }
-            }
-
-            // Sync sizing on resize event injected from widget wrapper
-            widget.onResize = () => { syncCanvasSize(); };
-            
-            // Initial sizing
-            setTimeout(syncCanvasSize, 50);
-
-            function redraw() {
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
-                ctx.lineCap = 'round';
-                ctx.lineJoin = 'round';
-                paths.forEach(p => {
-                    if(!p.points.length) return;
-                    ctx.beginPath();
-                    ctx.strokeStyle = p.color;
-                    ctx.lineWidth = p.size;
-                    ctx.moveTo(p.points[0].x, p.points[0].y);
-                    for(let i=1; i<p.points.length; i++) ctx.lineTo(p.points[i].x, p.points[i].y);
-                    ctx.stroke();
-                });
-            }
-
-            function getPos(e) {
-                const rect = canvas.getBoundingClientRect();
-                return { x: e.clientX - rect.left, y: e.clientY - rect.top };
-            }
-
-            canvas.addEventListener('pointerdown', (e) => {
-                isDrawing = true;
-                const pos = getPos(e);
-                currentPath = { color, size: brushSize, points: [pos] };
-                ctx.beginPath();
-                ctx.strokeStyle = color;
-                ctx.lineWidth = brushSize;
-                ctx.lineCap = 'round';
-                ctx.moveTo(pos.x, pos.y);
+        function redrawGlobal() {
+            globalCtx.clearRect(0, 0, globalCanvas.width, globalCanvas.height);
+            globalCtx.lineCap = 'round';
+            globalCtx.lineJoin = 'round';
+            State.globalPaths.forEach(p => {
+                if(!p.points.length) return;
+                globalCtx.beginPath();
+                globalCtx.strokeStyle = p.color;
+                globalCtx.lineWidth = 4;
+                globalCtx.moveTo(p.points[0].x, p.points[0].y);
+                for(let i=1; i<p.points.length; i++) globalCtx.lineTo(p.points[i].x, p.points[i].y);
+                globalCtx.stroke();
             });
+        }
 
-            canvas.addEventListener('pointermove', (e) => {
-                if(!isDrawing) return;
-                const pos = getPos(e);
-                const last = currentPath.points[currentPath.points.length - 1];
-                if(Math.hypot(pos.x - last.x, pos.y - last.y) > 2) { // throttle
-                    currentPath.points.push(pos);
-                    ctx.lineTo(pos.x, pos.y);
-                    ctx.stroke();
-                }
-            });
+        function toggleDrawMode() {
+            isDrawMode = !isDrawMode;
+            if (isDrawMode) {
+                globalCanvas.classList.remove('pointer-events-none');
+                globalCanvas.classList.add('pointer-events-auto', 'cursor-crosshair');
+                drawToolbar.classList.remove('hidden');
+                bottomDock.classList.add('translate-y-32', 'opacity-0'); // Hide bottom dock
+                syncGlobalCanvas();
+            } else {
+                globalCanvas.classList.add('pointer-events-none');
+                globalCanvas.classList.remove('pointer-events-auto', 'cursor-crosshair');
+                drawToolbar.classList.add('hidden');
+                bottomDock.classList.remove('translate-y-32', 'opacity-0');
+            }
+        }
 
-            const stopDraw = () => {
-                if(isDrawing) {
-                    isDrawing = false;
-                    paths.push(currentPath);
-                    widget.data.paths = paths;
-                }
+        globalCanvas.addEventListener('pointerdown', (e) => {
+            isGlobalDrawing = true;
+            currentGlobalPath = { color: globalColor, points: [{x: e.clientX, y: e.clientY}] };
+            globalCtx.beginPath();
+            globalCtx.strokeStyle = globalColor;
+            globalCtx.lineWidth = 4;
+            globalCtx.lineCap = 'round';
+            globalCtx.moveTo(e.clientX, e.clientY);
+        });
+
+        globalCanvas.addEventListener('pointermove', (e) => {
+            if(!isGlobalDrawing) return;
+            const last = currentGlobalPath.points[currentGlobalPath.points.length - 1];
+            // Throttle points collection
+            if(Math.hypot(e.clientX - last.x, e.clientY - last.y) > 3) {
+                currentGlobalPath.points.push({x: e.clientX, y: e.clientY});
+                globalCtx.lineTo(e.clientX, e.clientY);
+                globalCtx.stroke();
+            }
+        });
+
+        const stopGlobalDraw = () => {
+            if(isGlobalDrawing) {
+                isGlobalDrawing = false;
+                State.globalPaths.push(currentGlobalPath);
+            }
+        };
+        globalCanvas.addEventListener('pointerup', stopGlobalDraw);
+        globalCanvas.addEventListener('pointerleave', stopGlobalDraw);
+
+        // Draw Toolbar Events
+        document.querySelectorAll('#global-colors button').forEach(btn => {
+            btn.onclick = () => {
+                globalColor = btn.dataset.c;
+                document.querySelectorAll('#global-colors button').forEach(b => b.classList.remove('border-white', 'scale-110'));
+                btn.classList.add('border-white', 'scale-110');
             };
-            canvas.addEventListener('pointerup', stopDraw);
-            canvas.addEventListener('pointerleave', stopDraw);
+        });
 
-            container.querySelectorAll(`#colors-${widget.id} button`).forEach(btn => {
-                btn.onclick = () => {
-                    color = btn.dataset.c;
-                    container.querySelectorAll(`#colors-${widget.id} button`).forEach(b => b.classList.remove('scale-125', 'shadow-md'));
-                    btn.classList.add('scale-125', 'shadow-md');
-                };
-            });
+        document.getElementById('global-undo').onclick = () => {
+            State.globalPaths.pop();
+            redrawGlobal();
+        };
 
-            container.querySelector(`#undo-${widget.id}`).onclick = () => { paths.pop(); widget.data.paths = paths; redraw(); };
-            container.querySelector(`#clear-${widget.id}`).onclick = () => { paths = []; widget.data.paths = paths; redraw(); };
+        document.getElementById('global-clear').onclick = () => {
+            State.globalPaths = [];
+            redrawGlobal();
+        };
 
-            return null;
-        }
+        document.getElementById('global-exit').onclick = toggleDrawMode;
+
     </script>
 </body>
 </html>
