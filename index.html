@@ -1,0 +1,584 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { 
+  Clock, Timer, TimerReset, ListTodo, MessageCircle, 
+  Type, PenTool, GripHorizontal, X, Link, VolumeX, 
+  Volume1, Users, UsersRound, Play, Pause, RotateCcw,
+  Plus, Trash2
+} from 'lucide-react';
+
+// --- Utility: URL State Encoding ---
+const encodeState = (state) => {
+  try {
+    return btoa(encodeURIComponent(JSON.stringify(state)));
+  } catch (e) {
+    console.error("Failed to encode state", e);
+    return "";
+  }
+};
+
+const decodeState = (hash) => {
+  try {
+    return JSON.parse(decodeURIComponent(atob(hash)));
+  } catch (e) {
+    console.error("Failed to decode state", e);
+    return null;
+  }
+};
+
+// --- Widget Wrapper Component (Draggable) ---
+const WidgetWrapper = ({ widget, updateWidget, removeWidget, children }) => {
+  const widgetRef = useRef(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+
+  const handlePointerDown = (e) => {
+    // Only drag from the header area
+    if (e.target.closest('.drag-handle')) {
+      e.preventDefault();
+      const rect = widgetRef.current.getBoundingClientRect();
+      setIsDragging(true);
+      setDragOffset({
+        x: e.clientX - rect.left,
+        y: e.clientY - rect.top
+      });
+    }
+  };
+
+  useEffect(() => {
+    const handlePointerMove = (e) => {
+      if (!isDragging || !widgetRef.current) return;
+      e.preventDefault();
+      
+      const newX = e.clientX - dragOffset.x;
+      const newY = e.clientY - dragOffset.y;
+      
+      // Direct DOM manipulation for smooth dragging
+      widgetRef.current.style.left = `${newX}px`;
+      widgetRef.current.style.top = `${newY}px`;
+    };
+
+    const handlePointerUp = (e) => {
+      if (isDragging && widgetRef.current) {
+        setIsDragging(false);
+        const rect = widgetRef.current.getBoundingClientRect();
+        updateWidget(widget.id, { x: rect.left, y: rect.top });
+      }
+    };
+
+    if (isDragging) {
+      window.addEventListener('pointermove', handlePointerMove);
+      window.addEventListener('pointerup', handlePointerUp);
+    }
+    return () => {
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', handlePointerUp);
+    };
+  }, [isDragging, dragOffset, widget.id, updateWidget]);
+
+  return (
+    <div
+      ref={widgetRef}
+      className="absolute bg-white/80 backdrop-blur-md shadow-xl rounded-2xl border border-white/40 overflow-hidden flex flex-col"
+      style={{ left: widget.x, top: widget.y, minWidth: widget.minWidth || '300px' }}
+      onPointerDown={handlePointerDown}
+    >
+      <div className="drag-handle bg-black/5 hover:bg-black/10 transition-colors h-8 flex items-center justify-between px-3 cursor-grab active:cursor-grabbing border-b border-black/5">
+        <GripHorizontal size={16} className="text-gray-500" />
+        <button 
+          onClick={(e) => { e.stopPropagation(); removeWidget(widget.id); }}
+          className="p-1 hover:bg-red-500 hover:text-white rounded-md text-gray-500 transition-colors"
+        >
+          <X size={14} />
+        </button>
+      </div>
+      <div className="p-4 flex-grow flex flex-col">
+        {children}
+      </div>
+    </div>
+  );
+};
+
+// --- Individual Widgets ---
+
+const ClockWidget = () => {
+  const [time, setTime] = useState(new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => setTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  return (
+    <div className="flex flex-col items-center justify-center py-4">
+      <div className="text-5xl font-bold text-gray-800 tracking-tight">
+        {time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+      </div>
+      <div className="text-lg text-gray-500 mt-2 font-medium">
+        {time.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' })}
+      </div>
+    </div>
+  );
+};
+
+const TimerWidget = ({ data, updateData }) => {
+  const [timeLeft, setTimeLeft] = useState(data.duration || 300);
+  const [isRunning, setIsRunning] = useState(false);
+  const [inputMins, setInputMins] = useState(Math.floor((data.duration || 300) / 60));
+
+  useEffect(() => {
+    let interval;
+    if (isRunning && timeLeft > 0) {
+      interval = setInterval(() => setTimeLeft(t => t - 1), 1000);
+    } else if (timeLeft === 0) {
+      setIsRunning(false);
+    }
+    return () => clearInterval(interval);
+  }, [isRunning, timeLeft]);
+
+  // Sync state to parent on stop/pause for saving
+  useEffect(() => {
+    if (!isRunning) {
+      updateData({ duration: timeLeft });
+    }
+  }, [isRunning, timeLeft, updateData]);
+
+  const mins = Math.floor(timeLeft / 60);
+  const secs = timeLeft % 60;
+
+  const setTimer = () => {
+    const totalSecs = inputMins * 60;
+    setTimeLeft(totalSecs);
+    updateData({ duration: totalSecs });
+  };
+
+  return (
+    <div className="flex flex-col items-center">
+      <div className="text-6xl font-mono font-bold text-blue-600 mb-4 tracking-tighter">
+        {String(mins).padStart(2, '0')}:{String(secs).padStart(2, '0')}
+      </div>
+      
+      {!isRunning && (
+        <div className="flex items-center space-x-2 mb-4">
+          <input 
+            type="number" 
+            value={inputMins} 
+            onChange={(e) => setInputMins(Math.max(1, parseInt(e.target.value) || 0))}
+            className="w-16 p-1 border rounded text-center text-lg"
+            min="1"
+          />
+          <span className="text-gray-500 font-medium">min</span>
+          <button onClick={setTimer} className="px-3 py-1 bg-gray-200 hover:bg-gray-300 rounded text-sm font-medium transition-colors">Set</button>
+        </div>
+      )}
+
+      <div className="flex space-x-3">
+        <button 
+          onClick={() => setIsRunning(!isRunning)}
+          className={`p-3 rounded-full text-white shadow-md transition-transform active:scale-95 ${isRunning ? 'bg-amber-500 hover:bg-amber-600' : 'bg-green-500 hover:bg-green-600'}`}
+        >
+          {isRunning ? <Pause size={24} /> : <Play size={24} className="ml-1" />}
+        </button>
+        <button 
+          onClick={() => { setIsRunning(false); setTimeLeft(inputMins * 60); }}
+          className="p-3 rounded-full bg-gray-200 hover:bg-gray-300 text-gray-700 shadow-md transition-transform active:scale-95"
+        >
+          <RotateCcw size={24} />
+        </button>
+      </div>
+    </div>
+  );
+};
+
+const StopwatchWidget = () => {
+  const [elapsed, setElapsed] = useState(0);
+  const [isRunning, setIsRunning] = useState(false);
+
+  useEffect(() => {
+    let interval;
+    if (isRunning) {
+      interval = setInterval(() => setElapsed(e => e + 1), 1000);
+    }
+    return () => clearInterval(interval);
+  }, [isRunning]);
+
+  const mins = Math.floor(elapsed / 60);
+  const secs = elapsed % 60;
+
+  return (
+    <div className="flex flex-col items-center py-2">
+      <div className="text-6xl font-mono font-bold text-purple-600 mb-6 tracking-tighter">
+        {String(mins).padStart(2, '0')}:{String(secs).padStart(2, '0')}
+      </div>
+      <div className="flex space-x-3">
+        <button 
+          onClick={() => setIsRunning(!isRunning)}
+          className={`p-3 rounded-full text-white shadow-md transition-transform active:scale-95 ${isRunning ? 'bg-amber-500 hover:bg-amber-600' : 'bg-purple-500 hover:bg-purple-600'}`}
+        >
+          {isRunning ? <Pause size={24} /> : <Play size={24} className="ml-1" />}
+        </button>
+        <button 
+          onClick={() => { setIsRunning(false); setElapsed(0); }}
+          className="p-3 rounded-full bg-gray-200 hover:bg-gray-300 text-gray-700 shadow-md transition-transform active:scale-95"
+        >
+          <RotateCcw size={24} />
+        </button>
+      </div>
+    </div>
+  );
+};
+
+const TimetableWidget = ({ data, updateData }) => {
+  const [rows, setRows] = useState(data.rows || [{ time: '09:00', task: 'Morning Meeting' }]);
+
+  const updateRow = (index, field, value) => {
+    const newRows = [...rows];
+    newRows[index][field] = value;
+    setRows(newRows);
+    updateData({ rows: newRows });
+  };
+
+  const addRow = () => {
+    const newRows = [...rows, { time: '', task: '' }];
+    setRows(newRows);
+    updateData({ rows: newRows });
+  };
+
+  const deleteRow = (index) => {
+    const newRows = rows.filter((_, i) => i !== index);
+    setRows(newRows);
+    updateData({ rows: newRows });
+  };
+
+  return (
+    <div className="flex flex-col h-full w-[350px]">
+      <h3 className="text-xl font-bold text-gray-800 mb-3 border-b pb-2">Schedule</h3>
+      <div className="flex-grow overflow-y-auto space-y-2 mb-3">
+        {rows.map((row, i) => (
+          <div key={i} className="flex space-x-2 items-center">
+            <input 
+              type="time" 
+              value={row.time} 
+              onChange={(e) => updateRow(i, 'time', e.target.value)}
+              className="p-2 border rounded bg-white w-32 font-medium focus:ring-2 focus:ring-blue-400 outline-none"
+            />
+            <input 
+              type="text" 
+              value={row.task} 
+              placeholder="Task..."
+              onChange={(e) => updateRow(i, 'task', e.target.value)}
+              className="p-2 border rounded bg-white flex-grow focus:ring-2 focus:ring-blue-400 outline-none"
+            />
+            <button onClick={() => deleteRow(i)} className="text-gray-400 hover:text-red-500 p-1">
+              <Trash2 size={16} />
+            </button>
+          </div>
+        ))}
+      </div>
+      <button 
+        onClick={addRow}
+        className="flex items-center justify-center space-x-2 w-full py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-700 font-medium transition-colors"
+      >
+        <Plus size={18} /> <span>Add Item</span>
+      </button>
+    </div>
+  );
+};
+
+const WorkSymbolsWidget = ({ data, updateData }) => {
+  const symbols = [
+    { icon: <VolumeX size={64} />, label: "Silence", color: "text-red-500", bg: "bg-red-50" },
+    { icon: <Volume1 size={64} />, label: "Whisper", color: "text-amber-500", bg: "bg-amber-50" },
+    { icon: <Users size={64} />, label: "Ask Neighbor", color: "text-blue-500", bg: "bg-blue-50" },
+    { icon: <UsersRound size={64} />, label: "Work Together", color: "text-green-500", bg: "bg-green-50" },
+  ];
+
+  const [currentIndex, setCurrentIndex] = useState(data.index || 0);
+
+  const nextSymbol = () => {
+    const newIdx = (currentIndex + 1) % symbols.length;
+    setCurrentIndex(newIdx);
+    updateData({ index: newIdx });
+  };
+
+  const current = symbols[currentIndex];
+
+  return (
+    <div 
+      className={`flex flex-col items-center justify-center p-6 cursor-pointer rounded-xl transition-colors ${current.bg}`}
+      onClick={nextSymbol}
+    >
+      <div className={`mb-4 transition-transform active:scale-90 ${current.color}`}>
+        {current.icon}
+      </div>
+      <h3 className={`text-2xl font-bold ${current.color}`}>{current.label}</h3>
+      <p className="text-xs text-gray-400 mt-4 font-medium uppercase tracking-wider">Click to change</p>
+    </div>
+  );
+};
+
+const TextWidget = ({ data, updateData }) => {
+  return (
+    <div className="flex flex-col h-full w-[400px]">
+      <textarea
+        className="w-full min-h-[200px] p-2 bg-transparent resize-none outline-none text-gray-800 text-lg leading-relaxed placeholder-gray-400"
+        placeholder="Type your instructions here..."
+        defaultValue={data.text || ""}
+        onBlur={(e) => updateData({ text: e.target.value })}
+      />
+    </div>
+  );
+};
+
+const DrawingWidget = ({ data, updateData }) => {
+  const canvasRef = useRef(null);
+  const [isDrawing, setIsDrawing] = useState(false);
+  const [color, setColor] = useState('#000000');
+  const pathsRef = useRef(data.paths || []);
+  const currentPathRef = useRef(null);
+
+  // Redraw all saved paths on mount
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    
+    // Set internal resolution based on CSS size
+    canvas.width = 400;
+    canvas.height = 300;
+    
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    pathsRef.current.forEach(path => {
+      if (path.points.length === 0) return;
+      ctx.beginPath();
+      ctx.strokeStyle = path.color;
+      ctx.lineWidth = 4;
+      ctx.moveTo(path.points[0].x, path.points[0].y);
+      for (let i = 1; i < path.points.length; i++) {
+        ctx.lineTo(path.points[i].x, path.points[i].y);
+      }
+      ctx.stroke();
+    });
+  }, []);
+
+  const startDrawing = (e) => {
+    e.stopPropagation(); // Prevent widget drag
+    const canvas = canvasRef.current;
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    setIsDrawing(true);
+    currentPathRef.current = { color, points: [{ x, y }] };
+    
+    const ctx = canvas.getContext('2d');
+    ctx.beginPath();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 4;
+    ctx.moveTo(x, y);
+  };
+
+  const draw = (e) => {
+    if (!isDrawing) return;
+    e.stopPropagation();
+    
+    const canvas = canvasRef.current;
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    // Throttle point collection lightly by distance to save space
+    const lastPoint = currentPathRef.current.points[currentPathRef.current.points.length - 1];
+    const dx = x - lastPoint.x;
+    const dy = y - lastPoint.y;
+    if (dx*dx + dy*dy > 10) { 
+      currentPathRef.current.points.push({ x, y });
+      const ctx = canvas.getContext('2d');
+      ctx.lineTo(x, y);
+      ctx.stroke();
+    }
+  };
+
+  const endDrawing = (e) => {
+    if (isDrawing) {
+      e.stopPropagation();
+      setIsDrawing(false);
+      pathsRef.current.push(currentPathRef.current);
+      updateData({ paths: pathsRef.current });
+    }
+  };
+
+  const clearCanvas = () => {
+    pathsRef.current = [];
+    updateData({ paths: [] });
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+  };
+
+  return (
+    <div className="flex flex-col items-center">
+      <div className="flex w-full justify-between items-center mb-2 px-1">
+        <div className="flex space-x-2">
+          {['#000000', '#ef4444', '#3b82f6', '#22c55e'].map(c => (
+            <button 
+              key={c}
+              onClick={() => setColor(c)}
+              className={`w-6 h-6 rounded-full border-2 ${color === c ? 'border-gray-800 scale-110' : 'border-transparent'}`}
+              style={{ backgroundColor: c }}
+            />
+          ))}
+        </div>
+        <button onClick={clearCanvas} className="text-xs text-red-500 font-medium hover:bg-red-50 px-2 py-1 rounded">Clear</button>
+      </div>
+      <canvas
+        ref={canvasRef}
+        onPointerDown={startDrawing}
+        onPointerMove={draw}
+        onPointerUp={endDrawing}
+        onPointerLeave={endDrawing}
+        className="bg-white border rounded-lg cursor-crosshair touch-none shadow-inner"
+        style={{ width: '400px', height: '300px' }}
+      />
+    </div>
+  );
+};
+
+
+// --- Main Application ---
+export default function App() {
+  const [widgets, setWidgets] = useState([]);
+  const [isCopied, setIsCopied] = useState(false);
+
+  // Initialize from URL Hash
+  useEffect(() => {
+    const hash = window.location.hash.substring(1);
+    if (hash) {
+      const savedState = decodeState(hash);
+      if (savedState && Array.isArray(savedState)) {
+        setWidgets(savedState);
+      }
+    }
+  }, []);
+
+  const addWidget = (type) => {
+    const newWidget = {
+      id: Math.random().toString(36).substr(2, 9),
+      type,
+      x: window.innerWidth / 2 - 150 + (Math.random() * 50 - 25), // Center-ish with slight random offset
+      y: window.innerHeight / 2 - 150 + (Math.random() * 50 - 25),
+      data: {}
+    };
+    setWidgets([...widgets, newWidget]);
+  };
+
+  const updateWidgetData = (id, newData) => {
+    setWidgets(prev => prev.map(w => w.id === id ? { ...w, data: { ...w.data, ...newData } } : w));
+  };
+
+  const updateWidgetPosition = (id, pos) => {
+    setWidgets(prev => prev.map(w => w.id === id ? { ...w, ...pos } : w));
+  };
+
+  const removeWidget = (id) => {
+    setWidgets(prev => prev.filter(w => w.id !== id));
+  };
+
+  const saveAndShare = () => {
+    const encoded = encodeState(widgets);
+    const url = `${window.location.origin}${window.location.pathname}#${encoded}`;
+    
+    // Attempt to copy to clipboard
+    try {
+      document.execCommand('copy'); // Fallback for iFrames
+      navigator.clipboard.writeText(url).catch(() => {});
+      window.location.hash = encoded;
+      setIsCopied(true);
+      setTimeout(() => setIsCopied(false), 3000);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const renderWidgetContent = (widget) => {
+    switch (widget.type) {
+      case 'clock': return <ClockWidget />;
+      case 'timer': return <TimerWidget data={widget.data} updateData={(d) => updateWidgetData(widget.id, d)} />;
+      case 'stopwatch': return <StopwatchWidget />;
+      case 'timetable': return <TimetableWidget data={widget.data} updateData={(d) => updateWidgetData(widget.id, d)} />;
+      case 'symbols': return <WorkSymbolsWidget data={widget.data} updateData={(d) => updateWidgetData(widget.id, d)} />;
+      case 'text': return <TextWidget data={widget.data} updateData={(d) => updateWidgetData(widget.id, d)} />;
+      case 'draw': return <DrawingWidget data={widget.data} updateData={(d) => updateWidgetData(widget.id, d)} />;
+      default: return null;
+    }
+  };
+
+  return (
+    <div className="relative w-screen h-screen overflow-hidden bg-gradient-to-br from-indigo-100 via-purple-100 to-pink-100 font-sans">
+      
+      {/* Workspace Area */}
+      <div className="absolute inset-0">
+        {widgets.map(widget => (
+          <WidgetWrapper 
+            key={widget.id} 
+            widget={widget} 
+            updateWidget={updateWidgetPosition} 
+            removeWidget={removeWidget}
+          >
+            {renderWidgetContent(widget)}
+          </WidgetWrapper>
+        ))}
+        
+        {widgets.length === 0 && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <div className="text-center bg-white/50 backdrop-blur-sm p-8 rounded-3xl shadow-sm border border-white/60">
+              <h1 className="text-4xl font-extrabold text-indigo-900 mb-4">Classroom Board</h1>
+              <p className="text-lg text-gray-600">Select a tool from the dock below to get started.</p>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Save / Share Button (Top Right) */}
+      <div className="absolute top-6 right-6 z-50">
+        <button 
+          onClick={saveAndShare}
+          className="flex items-center space-x-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-3 rounded-full shadow-lg transition-transform hover:scale-105 active:scale-95"
+        >
+          <Link size={18} />
+          <span className="font-semibold">{isCopied ? "Link Copied!" : "Save & Share Screen"}</span>
+        </button>
+      </div>
+
+      {/* Bottom Toolbar Dock */}
+      <div className="absolute bottom-6 left-1/2 transform -translate-x-1/2 z-50">
+        <div className="bg-white/90 backdrop-blur-xl shadow-2xl rounded-2xl px-6 py-4 flex space-x-4 border border-white/50">
+          <ToolButton icon={<Clock />} label="Clock" onClick={() => addWidget('clock')} color="text-blue-500" />
+          <ToolButton icon={<TimerReset />} label="Timer" onClick={() => addWidget('timer')} color="text-amber-500" />
+          <ToolButton icon={<Timer />} label="Stopwatch" onClick={() => addWidget('stopwatch')} color="text-purple-500" />
+          <div className="w-px bg-gray-200 mx-2 h-10 self-center"></div>
+          <ToolButton icon={<ListTodo />} label="Schedule" onClick={() => addWidget('timetable')} color="text-emerald-500" />
+          <ToolButton icon={<MessageCircle />} label="Symbols" onClick={() => addWidget('symbols')} color="text-pink-500" />
+          <div className="w-px bg-gray-200 mx-2 h-10 self-center"></div>
+          <ToolButton icon={<Type />} label="Text" onClick={() => addWidget('text')} color="text-indigo-500" />
+          <ToolButton icon={<PenTool />} label="Draw" onClick={() => addWidget('draw')} color="text-teal-500" />
+        </div>
+      </div>
+      
+    </div>
+  );
+}
+
+// --- Toolbar Button Component ---
+const ToolButton = ({ icon, label, onClick, color }) => (
+  <button 
+    onClick={onClick}
+    className="group flex flex-col items-center justify-center p-2 rounded-xl hover:bg-gray-100 transition-all active:scale-90 min-w-[70px]"
+  >
+    <div className={`mb-1 transition-transform group-hover:-translate-y-1 ${color}`}>
+      {icon}
+    </div>
+    <span className="text-xs font-semibold text-gray-600 group-hover:text-gray-900">{label}</span>
+  </button>
+);
