@@ -1,584 +1,1102 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { 
-  Clock, Timer, TimerReset, ListTodo, MessageCircle, 
-  Type, PenTool, GripHorizontal, X, Link, VolumeX, 
-  Volume1, Users, UsersRound, Play, Pause, RotateCcw,
-  Plus, Trash2
-} from 'lucide-react';
-
-// --- Utility: URL State Encoding ---
-const encodeState = (state) => {
-  try {
-    return btoa(encodeURIComponent(JSON.stringify(state)));
-  } catch (e) {
-    console.error("Failed to encode state", e);
-    return "";
-  }
-};
-
-const decodeState = (hash) => {
-  try {
-    return JSON.parse(decodeURIComponent(atob(hash)));
-  } catch (e) {
-    console.error("Failed to decode state", e);
-    return null;
-  }
-};
-
-// --- Widget Wrapper Component (Draggable) ---
-const WidgetWrapper = ({ widget, updateWidget, removeWidget, children }) => {
-  const widgetRef = useRef(null);
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
-
-  const handlePointerDown = (e) => {
-    // Only drag from the header area
-    if (e.target.closest('.drag-handle')) {
-      e.preventDefault();
-      const rect = widgetRef.current.getBoundingClientRect();
-      setIsDragging(true);
-      setDragOffset({
-        x: e.clientX - rect.left,
-        y: e.clientY - rect.top
-      });
-    }
-  };
-
-  useEffect(() => {
-    const handlePointerMove = (e) => {
-      if (!isDragging || !widgetRef.current) return;
-      e.preventDefault();
-      
-      const newX = e.clientX - dragOffset.x;
-      const newY = e.clientY - dragOffset.y;
-      
-      // Direct DOM manipulation for smooth dragging
-      widgetRef.current.style.left = `${newX}px`;
-      widgetRef.current.style.top = `${newY}px`;
-    };
-
-    const handlePointerUp = (e) => {
-      if (isDragging && widgetRef.current) {
-        setIsDragging(false);
-        const rect = widgetRef.current.getBoundingClientRect();
-        updateWidget(widget.id, { x: rect.left, y: rect.top });
-      }
-    };
-
-    if (isDragging) {
-      window.addEventListener('pointermove', handlePointerMove);
-      window.addEventListener('pointerup', handlePointerUp);
-    }
-    return () => {
-      window.removeEventListener('pointermove', handlePointerMove);
-      window.removeEventListener('pointerup', handlePointerUp);
-    };
-  }, [isDragging, dragOffset, widget.id, updateWidget]);
-
-  return (
-    <div
-      ref={widgetRef}
-      className="absolute bg-white/80 backdrop-blur-md shadow-xl rounded-2xl border border-white/40 overflow-hidden flex flex-col"
-      style={{ left: widget.x, top: widget.y, minWidth: widget.minWidth || '300px' }}
-      onPointerDown={handlePointerDown}
-    >
-      <div className="drag-handle bg-black/5 hover:bg-black/10 transition-colors h-8 flex items-center justify-between px-3 cursor-grab active:cursor-grabbing border-b border-black/5">
-        <GripHorizontal size={16} className="text-gray-500" />
-        <button 
-          onClick={(e) => { e.stopPropagation(); removeWidget(widget.id); }}
-          className="p-1 hover:bg-red-500 hover:text-white rounded-md text-gray-500 transition-colors"
-        >
-          <X size={14} />
-        </button>
-      </div>
-      <div className="p-4 flex-grow flex flex-col">
-        {children}
-      </div>
-    </div>
-  );
-};
-
-// --- Individual Widgets ---
-
-const ClockWidget = () => {
-  const [time, setTime] = useState(new Date());
-
-  useEffect(() => {
-    const timer = setInterval(() => setTime(new Date()), 1000);
-    return () => clearInterval(timer);
-  }, []);
-
-  return (
-    <div className="flex flex-col items-center justify-center py-4">
-      <div className="text-5xl font-bold text-gray-800 tracking-tight">
-        {time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-      </div>
-      <div className="text-lg text-gray-500 mt-2 font-medium">
-        {time.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' })}
-      </div>
-    </div>
-  );
-};
-
-const TimerWidget = ({ data, updateData }) => {
-  const [timeLeft, setTimeLeft] = useState(data.duration || 300);
-  const [isRunning, setIsRunning] = useState(false);
-  const [inputMins, setInputMins] = useState(Math.floor((data.duration || 300) / 60));
-
-  useEffect(() => {
-    let interval;
-    if (isRunning && timeLeft > 0) {
-      interval = setInterval(() => setTimeLeft(t => t - 1), 1000);
-    } else if (timeLeft === 0) {
-      setIsRunning(false);
-    }
-    return () => clearInterval(interval);
-  }, [isRunning, timeLeft]);
-
-  // Sync state to parent on stop/pause for saving
-  useEffect(() => {
-    if (!isRunning) {
-      updateData({ duration: timeLeft });
-    }
-  }, [isRunning, timeLeft, updateData]);
-
-  const mins = Math.floor(timeLeft / 60);
-  const secs = timeLeft % 60;
-
-  const setTimer = () => {
-    const totalSecs = inputMins * 60;
-    setTimeLeft(totalSecs);
-    updateData({ duration: totalSecs });
-  };
-
-  return (
-    <div className="flex flex-col items-center">
-      <div className="text-6xl font-mono font-bold text-blue-600 mb-4 tracking-tighter">
-        {String(mins).padStart(2, '0')}:{String(secs).padStart(2, '0')}
-      </div>
-      
-      {!isRunning && (
-        <div className="flex items-center space-x-2 mb-4">
-          <input 
-            type="number" 
-            value={inputMins} 
-            onChange={(e) => setInputMins(Math.max(1, parseInt(e.target.value) || 0))}
-            className="w-16 p-1 border rounded text-center text-lg"
-            min="1"
-          />
-          <span className="text-gray-500 font-medium">min</span>
-          <button onClick={setTimer} className="px-3 py-1 bg-gray-200 hover:bg-gray-300 rounded text-sm font-medium transition-colors">Set</button>
-        </div>
-      )}
-
-      <div className="flex space-x-3">
-        <button 
-          onClick={() => setIsRunning(!isRunning)}
-          className={`p-3 rounded-full text-white shadow-md transition-transform active:scale-95 ${isRunning ? 'bg-amber-500 hover:bg-amber-600' : 'bg-green-500 hover:bg-green-600'}`}
-        >
-          {isRunning ? <Pause size={24} /> : <Play size={24} className="ml-1" />}
-        </button>
-        <button 
-          onClick={() => { setIsRunning(false); setTimeLeft(inputMins * 60); }}
-          className="p-3 rounded-full bg-gray-200 hover:bg-gray-300 text-gray-700 shadow-md transition-transform active:scale-95"
-        >
-          <RotateCcw size={24} />
-        </button>
-      </div>
-    </div>
-  );
-};
-
-const StopwatchWidget = () => {
-  const [elapsed, setElapsed] = useState(0);
-  const [isRunning, setIsRunning] = useState(false);
-
-  useEffect(() => {
-    let interval;
-    if (isRunning) {
-      interval = setInterval(() => setElapsed(e => e + 1), 1000);
-    }
-    return () => clearInterval(interval);
-  }, [isRunning]);
-
-  const mins = Math.floor(elapsed / 60);
-  const secs = elapsed % 60;
-
-  return (
-    <div className="flex flex-col items-center py-2">
-      <div className="text-6xl font-mono font-bold text-purple-600 mb-6 tracking-tighter">
-        {String(mins).padStart(2, '0')}:{String(secs).padStart(2, '0')}
-      </div>
-      <div className="flex space-x-3">
-        <button 
-          onClick={() => setIsRunning(!isRunning)}
-          className={`p-3 rounded-full text-white shadow-md transition-transform active:scale-95 ${isRunning ? 'bg-amber-500 hover:bg-amber-600' : 'bg-purple-500 hover:bg-purple-600'}`}
-        >
-          {isRunning ? <Pause size={24} /> : <Play size={24} className="ml-1" />}
-        </button>
-        <button 
-          onClick={() => { setIsRunning(false); setElapsed(0); }}
-          className="p-3 rounded-full bg-gray-200 hover:bg-gray-300 text-gray-700 shadow-md transition-transform active:scale-95"
-        >
-          <RotateCcw size={24} />
-        </button>
-      </div>
-    </div>
-  );
-};
-
-const TimetableWidget = ({ data, updateData }) => {
-  const [rows, setRows] = useState(data.rows || [{ time: '09:00', task: 'Morning Meeting' }]);
-
-  const updateRow = (index, field, value) => {
-    const newRows = [...rows];
-    newRows[index][field] = value;
-    setRows(newRows);
-    updateData({ rows: newRows });
-  };
-
-  const addRow = () => {
-    const newRows = [...rows, { time: '', task: '' }];
-    setRows(newRows);
-    updateData({ rows: newRows });
-  };
-
-  const deleteRow = (index) => {
-    const newRows = rows.filter((_, i) => i !== index);
-    setRows(newRows);
-    updateData({ rows: newRows });
-  };
-
-  return (
-    <div className="flex flex-col h-full w-[350px]">
-      <h3 className="text-xl font-bold text-gray-800 mb-3 border-b pb-2">Schedule</h3>
-      <div className="flex-grow overflow-y-auto space-y-2 mb-3">
-        {rows.map((row, i) => (
-          <div key={i} className="flex space-x-2 items-center">
-            <input 
-              type="time" 
-              value={row.time} 
-              onChange={(e) => updateRow(i, 'time', e.target.value)}
-              className="p-2 border rounded bg-white w-32 font-medium focus:ring-2 focus:ring-blue-400 outline-none"
-            />
-            <input 
-              type="text" 
-              value={row.task} 
-              placeholder="Task..."
-              onChange={(e) => updateRow(i, 'task', e.target.value)}
-              className="p-2 border rounded bg-white flex-grow focus:ring-2 focus:ring-blue-400 outline-none"
-            />
-            <button onClick={() => deleteRow(i)} className="text-gray-400 hover:text-red-500 p-1">
-              <Trash2 size={16} />
-            </button>
-          </div>
-        ))}
-      </div>
-      <button 
-        onClick={addRow}
-        className="flex items-center justify-center space-x-2 w-full py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-700 font-medium transition-colors"
-      >
-        <Plus size={18} /> <span>Add Item</span>
-      </button>
-    </div>
-  );
-};
-
-const WorkSymbolsWidget = ({ data, updateData }) => {
-  const symbols = [
-    { icon: <VolumeX size={64} />, label: "Silence", color: "text-red-500", bg: "bg-red-50" },
-    { icon: <Volume1 size={64} />, label: "Whisper", color: "text-amber-500", bg: "bg-amber-50" },
-    { icon: <Users size={64} />, label: "Ask Neighbor", color: "text-blue-500", bg: "bg-blue-50" },
-    { icon: <UsersRound size={64} />, label: "Work Together", color: "text-green-500", bg: "bg-green-50" },
-  ];
-
-  const [currentIndex, setCurrentIndex] = useState(data.index || 0);
-
-  const nextSymbol = () => {
-    const newIdx = (currentIndex + 1) % symbols.length;
-    setCurrentIndex(newIdx);
-    updateData({ index: newIdx });
-  };
-
-  const current = symbols[currentIndex];
-
-  return (
-    <div 
-      className={`flex flex-col items-center justify-center p-6 cursor-pointer rounded-xl transition-colors ${current.bg}`}
-      onClick={nextSymbol}
-    >
-      <div className={`mb-4 transition-transform active:scale-90 ${current.color}`}>
-        {current.icon}
-      </div>
-      <h3 className={`text-2xl font-bold ${current.color}`}>{current.label}</h3>
-      <p className="text-xs text-gray-400 mt-4 font-medium uppercase tracking-wider">Click to change</p>
-    </div>
-  );
-};
-
-const TextWidget = ({ data, updateData }) => {
-  return (
-    <div className="flex flex-col h-full w-[400px]">
-      <textarea
-        className="w-full min-h-[200px] p-2 bg-transparent resize-none outline-none text-gray-800 text-lg leading-relaxed placeholder-gray-400"
-        placeholder="Type your instructions here..."
-        defaultValue={data.text || ""}
-        onBlur={(e) => updateData({ text: e.target.value })}
-      />
-    </div>
-  );
-};
-
-const DrawingWidget = ({ data, updateData }) => {
-  const canvasRef = useRef(null);
-  const [isDrawing, setIsDrawing] = useState(false);
-  const [color, setColor] = useState('#000000');
-  const pathsRef = useRef(data.paths || []);
-  const currentPathRef = useRef(null);
-
-  // Redraw all saved paths on mount
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d');
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Modern Classroom Board</title>
     
-    // Set internal resolution based on CSS size
-    canvas.width = 400;
-    canvas.height = 300;
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
     
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
 
-    pathsRef.current.forEach(path => {
-      if (path.points.length === 0) return;
-      ctx.beginPath();
-      ctx.strokeStyle = path.color;
-      ctx.lineWidth = 4;
-      ctx.moveTo(path.points[0].x, path.points[0].y);
-      for (let i = 1; i < path.points.length; i++) {
-        ctx.lineTo(path.points[i].x, path.points[i].y);
-      }
-      ctx.stroke();
-    });
-  }, []);
+    <style>
+        /* Custom Styles & Animations */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
 
-  const startDrawing = (e) => {
-    e.stopPropagation(); // Prevent widget drag
-    const canvas = canvasRef.current;
-    const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
+        body {
+            font-family: 'Inter', sans-serif;
+            overflow: hidden;
+            touch-action: none; /* Prevent browser handling of gestures */
+        }
 
-    setIsDrawing(true);
-    currentPathRef.current = { color, points: [{ x, y }] };
-    
-    const ctx = canvas.getContext('2d');
-    ctx.beginPath();
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 4;
-    ctx.moveTo(x, y);
-  };
+        /* Custom Scrollbar for widgets */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(0, 0, 0, 0.15);
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(0, 0, 0, 0.3);
+        }
 
-  const draw = (e) => {
-    if (!isDrawing) return;
-    e.stopPropagation();
-    
-    const canvas = canvasRef.current;
-    const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
+        /* Widget Animations */
+        @keyframes popIn {
+            0% { opacity: 0; transform: scale(0.9) translateY(10px); }
+            100% { opacity: 1; transform: scale(1) translateY(0); }
+        }
+        .widget-anim {
+            animation: popIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
 
-    // Throttle point collection lightly by distance to save space
-    const lastPoint = currentPathRef.current.points[currentPathRef.current.points.length - 1];
-    const dx = x - lastPoint.x;
-    const dy = y - lastPoint.y;
-    if (dx*dx + dy*dy > 10) { 
-      currentPathRef.current.points.push({ x, y });
-      const ctx = canvas.getContext('2d');
-      ctx.lineTo(x, y);
-      ctx.stroke();
-    }
-  };
+        /* Glassmorphism Themes */
+        .theme-glass {
+            background: rgba(255, 255, 255, 0.75);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+            border: 1px solid rgba(255, 255, 255, 0.6);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.15);
+            color: #1f2937;
+        }
+        .theme-dark {
+            background: rgba(24, 24, 27, 0.85);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            color: #f9fafb;
+        }
+        .theme-light {
+            background: #ffffff;
+            border: 1px solid #e5e7eb;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+            color: #1f2937;
+        }
 
-  const endDrawing = (e) => {
-    if (isDrawing) {
-      e.stopPropagation();
-      setIsDrawing(false);
-      pathsRef.current.push(currentPathRef.current);
-      updateData({ paths: pathsRef.current });
-    }
-  };
-
-  const clearCanvas = () => {
-    pathsRef.current = [];
-    updateData({ paths: [] });
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d');
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-  };
-
-  return (
-    <div className="flex flex-col items-center">
-      <div className="flex w-full justify-between items-center mb-2 px-1">
-        <div className="flex space-x-2">
-          {['#000000', '#ef4444', '#3b82f6', '#22c55e'].map(c => (
-            <button 
-              key={c}
-              onClick={() => setColor(c)}
-              className={`w-6 h-6 rounded-full border-2 ${color === c ? 'border-gray-800 scale-110' : 'border-transparent'}`}
-              style={{ backgroundColor: c }}
-            />
-          ))}
-        </div>
-        <button onClick={clearCanvas} className="text-xs text-red-500 font-medium hover:bg-red-50 px-2 py-1 rounded">Clear</button>
-      </div>
-      <canvas
-        ref={canvasRef}
-        onPointerDown={startDrawing}
-        onPointerMove={draw}
-        onPointerUp={endDrawing}
-        onPointerLeave={endDrawing}
-        className="bg-white border rounded-lg cursor-crosshair touch-none shadow-inner"
-        style={{ width: '400px', height: '300px' }}
-      />
-    </div>
-  );
-};
-
-
-// --- Main Application ---
-export default function App() {
-  const [widgets, setWidgets] = useState([]);
-  const [isCopied, setIsCopied] = useState(false);
-
-  // Initialize from URL Hash
-  useEffect(() => {
-    const hash = window.location.hash.substring(1);
-    if (hash) {
-      const savedState = decodeState(hash);
-      if (savedState && Array.isArray(savedState)) {
-        setWidgets(savedState);
-      }
-    }
-  }, []);
-
-  const addWidget = (type) => {
-    const newWidget = {
-      id: Math.random().toString(36).substr(2, 9),
-      type,
-      x: window.innerWidth / 2 - 150 + (Math.random() * 50 - 25), // Center-ish with slight random offset
-      y: window.innerHeight / 2 - 150 + (Math.random() * 50 - 25),
-      data: {}
-    };
-    setWidgets([...widgets, newWidget]);
-  };
-
-  const updateWidgetData = (id, newData) => {
-    setWidgets(prev => prev.map(w => w.id === id ? { ...w, data: { ...w.data, ...newData } } : w));
-  };
-
-  const updateWidgetPosition = (id, pos) => {
-    setWidgets(prev => prev.map(w => w.id === id ? { ...w, ...pos } : w));
-  };
-
-  const removeWidget = (id) => {
-    setWidgets(prev => prev.filter(w => w.id !== id));
-  };
-
-  const saveAndShare = () => {
-    const encoded = encodeState(widgets);
-    const url = `${window.location.origin}${window.location.pathname}#${encoded}`;
-    
-    // Attempt to copy to clipboard
-    try {
-      document.execCommand('copy'); // Fallback for iFrames
-      navigator.clipboard.writeText(url).catch(() => {});
-      window.location.hash = encoded;
-      setIsCopied(true);
-      setTimeout(() => setIsCopied(false), 3000);
-    } catch (e) {
-      console.error(e);
-    }
-  };
-
-  const renderWidgetContent = (widget) => {
-    switch (widget.type) {
-      case 'clock': return <ClockWidget />;
-      case 'timer': return <TimerWidget data={widget.data} updateData={(d) => updateWidgetData(widget.id, d)} />;
-      case 'stopwatch': return <StopwatchWidget />;
-      case 'timetable': return <TimetableWidget data={widget.data} updateData={(d) => updateWidgetData(widget.id, d)} />;
-      case 'symbols': return <WorkSymbolsWidget data={widget.data} updateData={(d) => updateWidgetData(widget.id, d)} />;
-      case 'text': return <TextWidget data={widget.data} updateData={(d) => updateWidgetData(widget.id, d)} />;
-      case 'draw': return <DrawingWidget data={widget.data} updateData={(d) => updateWidgetData(widget.id, d)} />;
-      default: return null;
-    }
-  };
-
-  return (
-    <div className="relative w-screen h-screen overflow-hidden bg-gradient-to-br from-indigo-100 via-purple-100 to-pink-100 font-sans">
-      
-      {/* Workspace Area */}
-      <div className="absolute inset-0">
-        {widgets.map(widget => (
-          <WidgetWrapper 
-            key={widget.id} 
-            widget={widget} 
-            updateWidget={updateWidgetPosition} 
-            removeWidget={removeWidget}
-          >
-            {renderWidgetContent(widget)}
-          </WidgetWrapper>
-        ))}
+        /* Inputs reset */
+        input:focus, textarea:focus {
+            outline: none;
+        }
         
-        {widgets.length === 0 && (
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <div className="text-center bg-white/50 backdrop-blur-sm p-8 rounded-3xl shadow-sm border border-white/60">
-              <h1 className="text-4xl font-extrabold text-indigo-900 mb-4">Classroom Board</h1>
-              <p className="text-lg text-gray-600">Select a tool from the dock below to get started.</p>
+        /* Range Slider Styling */
+        input[type=range] {
+            -webkit-appearance: none;
+            background: rgba(0,0,0,0.1);
+            height: 4px;
+            border-radius: 2px;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 16px;
+            width: 16px;
+            border-radius: 50%;
+            background: #4f46e5;
+            cursor: pointer;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+    </style>
+</head>
+<body id="app-body" class="bg-slate-900 transition-colors duration-700 bg-cover bg-center select-none">
+
+    <!-- Darkener Overlay for readability -->
+    <div id="bg-overlay" class="absolute inset-0 bg-black/20 pointer-events-none z-0 transition-opacity duration-500"></div>
+
+    <!-- Workspace Container (Widgets go here) -->
+    <div id="workspace" class="absolute inset-0 z-10 overflow-hidden pointer-events-none"></div>
+
+    <!-- Top Command Panel -->
+    <div class="absolute top-6 left-6 right-6 flex items-center justify-between z-30 pointer-events-auto">
+        <div class="flex items-center space-x-2 bg-white/10 backdrop-blur-xl border border-white/20 p-1.5 rounded-2xl shadow-lg text-white">
+            <button id="btn-bg" class="px-4 py-2 hover:bg-white/20 rounded-xl transition-all flex items-center space-x-2 font-bold text-xs uppercase tracking-wider">
+                <i data-lucide="palette" class="w-4 h-4"></i>
+                <span class="hidden sm:inline">Background</span>
+            </button>
+
+            <div class="w-px h-6 bg-white/20 mx-2"></div>
+
+            <div class="flex space-x-1">
+                <button onclick="setTheme('glass')" class="theme-btn px-3 py-1.5 text-xs font-black uppercase rounded-xl transition-all bg-white text-indigo-900 shadow-sm" data-theme="glass">Glass</button>
+                <button onclick="setTheme('light')" class="theme-btn px-3 py-1.5 text-xs font-black uppercase rounded-xl transition-all hover:bg-white/20" data-theme="light">Light</button>
+                <button onclick="setTheme('dark')" class="theme-btn px-3 py-1.5 text-xs font-black uppercase rounded-xl transition-all hover:bg-white/20" data-theme="dark">Dark</button>
             </div>
-          </div>
-        )}
-      </div>
 
-      {/* Save / Share Button (Top Right) */}
-      <div className="absolute top-6 right-6 z-50">
-        <button 
-          onClick={saveAndShare}
-          className="flex items-center space-x-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-3 rounded-full shadow-lg transition-transform hover:scale-105 active:scale-95"
-        >
-          <Link size={18} />
-          <span className="font-semibold">{isCopied ? "Link Copied!" : "Save & Share Screen"}</span>
-        </button>
-      </div>
+            <div class="w-px h-6 bg-white/20 mx-2"></div>
 
-      {/* Bottom Toolbar Dock */}
-      <div className="absolute bottom-6 left-1/2 transform -translate-x-1/2 z-50">
-        <div className="bg-white/90 backdrop-blur-xl shadow-2xl rounded-2xl px-6 py-4 flex space-x-4 border border-white/50">
-          <ToolButton icon={<Clock />} label="Clock" onClick={() => addWidget('clock')} color="text-blue-500" />
-          <ToolButton icon={<TimerReset />} label="Timer" onClick={() => addWidget('timer')} color="text-amber-500" />
-          <ToolButton icon={<Timer />} label="Stopwatch" onClick={() => addWidget('stopwatch')} color="text-purple-500" />
-          <div className="w-px bg-gray-200 mx-2 h-10 self-center"></div>
-          <ToolButton icon={<ListTodo />} label="Schedule" onClick={() => addWidget('timetable')} color="text-emerald-500" />
-          <ToolButton icon={<MessageCircle />} label="Symbols" onClick={() => addWidget('symbols')} color="text-pink-500" />
-          <div className="w-px bg-gray-200 mx-2 h-10 self-center"></div>
-          <ToolButton icon={<Type />} label="Text" onClick={() => addWidget('text')} color="text-indigo-500" />
-          <ToolButton icon={<PenTool />} label="Draw" onClick={() => addWidget('draw')} color="text-teal-500" />
+            <button id="btn-clear" class="p-2 hover:bg-red-500/80 rounded-xl transition-all" title="Clear all widgets">
+                <i data-lucide="trash-2" class="w-4 h-4"></i>
+            </button>
         </div>
-      </div>
-      
-    </div>
-  );
-}
 
-// --- Toolbar Button Component ---
-const ToolButton = ({ icon, label, onClick, color }) => (
-  <button 
-    onClick={onClick}
-    className="group flex flex-col items-center justify-center p-2 rounded-xl hover:bg-gray-100 transition-all active:scale-90 min-w-[70px]"
-  >
-    <div className={`mb-1 transition-transform group-hover:-translate-y-1 ${color}`}>
-      {icon}
+        <div class="flex items-center space-x-3">
+            <button id="btn-fullscreen" class="p-3 bg-white/10 backdrop-blur-xl hover:bg-white/20 border border-white/20 text-white rounded-2xl shadow-lg transition-transform active:scale-95">
+                <i data-lucide="maximize-2" class="w-5 h-5"></i>
+            </button>
+
+            <button id="btn-save" class="flex items-center space-x-2 bg-indigo-600/90 backdrop-blur-xl hover:bg-indigo-600 text-white px-5 py-3 rounded-2xl shadow-lg transition-transform hover:scale-105 active:scale-95 border border-indigo-400/30">
+                <i data-lucide="link" class="w-4 h-4"></i>
+                <span id="save-text" class="font-bold text-sm tracking-wide">Save & Share</span>
+            </button>
+        </div>
     </div>
-    <span className="text-xs font-semibold text-gray-600 group-hover:text-gray-900">{label}</span>
-  </button>
-);
+
+    <!-- Background Selector Popup (Hidden by default) -->
+    <div id="bg-panel" class="hidden absolute top-24 left-6 z-40 bg-white/95 backdrop-blur-2xl border border-zinc-200 p-5 rounded-3xl shadow-2xl w-80 transform transition-all">
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="font-extrabold text-zinc-800 text-xs uppercase tracking-widest">Screen Backgrounds</h3>
+            <button id="close-bg" class="text-zinc-400 hover:text-zinc-800 bg-zinc-100 hover:bg-zinc-200 p-1 rounded-full transition-colors">
+                <i data-lucide="x" class="w-4 h-4"></i>
+            </button>
+        </div>
+        <div id="bg-grid" class="grid grid-cols-3 gap-2">
+            <!-- Populated via JS -->
+        </div>
+    </div>
+
+    <!-- Bottom Dock -->
+    <div id="bottom-dock" class="absolute bottom-8 left-1/2 transform -translate-x-1/2 z-30 transition-all duration-500 pointer-events-auto">
+        <div class="bg-zinc-900/90 backdrop-blur-2xl shadow-2xl rounded-[2rem] px-4 py-3 flex items-center space-x-2 border border-zinc-700/50">
+            <!-- Dock Buttons -->
+            <button class="dock-btn text-sky-400 hover:bg-zinc-800" data-type="clock">
+                <div class="icon-wrap bg-sky-500/10"><i data-lucide="clock"></i></div><span>Clock</span>
+            </button>
+            <button class="dock-btn text-amber-400 hover:bg-zinc-800" data-type="timer">
+                <div class="icon-wrap bg-amber-500/10"><i data-lucide="timer-reset"></i></div><span>Timer</span>
+            </button>
+            <button class="dock-btn text-purple-400 hover:bg-zinc-800" data-type="stopwatch">
+                <div class="icon-wrap bg-purple-500/10"><i data-lucide="timer"></i></div><span>Stopwatch</span>
+            </button>
+            <div class="w-px bg-zinc-700 mx-2 h-10"></div>
+            <button class="dock-btn text-emerald-400 hover:bg-zinc-800" data-type="timetable">
+                <div class="icon-wrap bg-emerald-500/10"><i data-lucide="list-todo"></i></div><span>Schedule</span>
+            </button>
+            <button class="dock-btn text-pink-400 hover:bg-zinc-800" data-type="symbols">
+                <div class="icon-wrap bg-pink-500/10"><i data-lucide="message-circle"></i></div><span>Symbols</span>
+            </button>
+            <div class="w-px bg-zinc-700 mx-2 h-10"></div>
+            <button class="dock-btn text-indigo-400 hover:bg-zinc-800" data-type="text">
+                <div class="icon-wrap bg-indigo-500/10"><i data-lucide="type"></i></div><span>Text</span>
+            </button>
+            <button class="dock-btn text-teal-400 hover:bg-zinc-800" data-type="draw">
+                <div class="icon-wrap bg-teal-500/10"><i data-lucide="pen-tool"></i></div><span>Draw</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Empty State -->
+    <div id="empty-state" class="absolute inset-0 flex items-center justify-center pointer-events-none z-0 transition-opacity duration-300">
+        <div class="text-center bg-black/20 backdrop-blur-md p-10 rounded-[2.5rem] border border-white/20 shadow-2xl">
+            <h1 class="text-4xl font-black text-white drop-shadow-md mb-3 tracking-tight">Classroom Board</h1>
+            <p class="text-sm font-semibold text-white/80">Select a tool from the dock below to get started.</p>
+        </div>
+    </div>
+
+    <style>
+        .dock-btn {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 0.5rem;
+            border-radius: 1.5rem;
+            transition: all 0.2s;
+            min-width: 72px;
+        }
+        .dock-btn:active { transform: scale(0.95); }
+        .dock-btn .icon-wrap {
+            padding: 0.75rem;
+            border-radius: 1.2rem;
+            margin-bottom: 0.35rem;
+            transition: transform 0.3s;
+        }
+        .dock-btn:hover .icon-wrap { transform: translateY(-4px) scale(1.05); }
+        .dock-btn span {
+            font-size: 0.65rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: #9ca3af;
+            transition: color 0.2s;
+        }
+        .dock-btn:hover span { color: #ffffff; }
+    </style>
+
+    <script>
+        // ==========================================
+        // STATE & CONSTANTS
+        // ==========================================
+        const BACKGROUNDS = [
+            { id: 'bg1', type: 'image', url: 'https://images.unsplash.com/photo-1511497584788-876760111969?auto=format&fit=crop&w=1920&q=80' },
+            { id: 'bg2', type: 'image', url: 'https://images.unsplash.com/photo-1507842217343-583bb7270b66?auto=format&fit=crop&w=1920&q=80' },
+            { id: 'bg3', type: 'image', url: 'https://images.unsplash.com/photo-1506318137071-a8e063b4bec0?auto=format&fit=crop&w=1920&q=80' },
+            { id: 'bg4', type: 'gradient', css: 'bg-gradient-to-tr from-orange-400 via-pink-500 to-indigo-600' },
+            { id: 'bg5', type: 'gradient', css: 'bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900' },
+            { id: 'bg6', type: 'gradient', css: 'bg-gradient-to-br from-emerald-800 to-teal-950' },
+            { id: 'bg7', type: 'color', css: 'bg-[#1e2d24]' },
+            { id: 'bg8', type: 'color', css: 'bg-zinc-900' }
+        ];
+
+        const State = {
+            widgets: [], // { id, type, x, y, w, h, data }
+            theme: 'glass',
+            background: BACKGROUNDS[0],
+            maxZ: 100
+        };
+
+        // DOM Elements
+        const workspace = document.getElementById('workspace');
+        const emptyState = document.getElementById('empty-state');
+        const appBody = document.getElementById('app-body');
+        const bgOverlay = document.getElementById('bg-overlay');
+
+        // Initializer
+        lucide.createIcons();
+        initBackgroundPanel();
+        loadStateFromURL();
+
+        // ==========================================
+        // CORE FUNCTIONS
+        // ==========================================
+        function generateId() { return Math.random().toString(36).substr(2, 9); }
+
+        function checkEmptyState() {
+            emptyState.style.opacity = State.widgets.length === 0 ? '1' : '0';
+        }
+
+        // Web Audio API Synth Buzzer
+        function playBuzzer() {
+            try {
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                if (!AudioContext) return;
+                const ctx = new AudioContext();
+                const playChime = (time, freq) => {
+                    const osc = ctx.createOscillator();
+                    const gain = ctx.createGain();
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(freq, time);
+                    gain.gain.setValueAtTime(0.3, time);
+                    gain.gain.exponentialRampToValueAtTime(0.001, time + 0.8);
+                    osc.connect(gain);
+                    gain.connect(ctx.destination);
+                    osc.start(time);
+                    osc.stop(time + 0.8);
+                };
+                playChime(ctx.currentTime, 523.25);
+                playChime(ctx.currentTime + 0.15, 659.25);
+                playChime(ctx.currentTime + 0.3, 783.99);
+            } catch(e) {}
+        }
+
+        // ==========================================
+        // URL ENCODING & SAVING
+        // ==========================================
+        function loadStateFromURL() {
+            const hash = window.location.hash.substring(1);
+            if (!hash) {
+                applyBackground(State.background);
+                return;
+            }
+            try {
+                const saved = JSON.parse(decodeURIComponent(atob(hash)));
+                if (saved.theme) setTheme(saved.theme);
+                if (saved.background) applyBackground(saved.background);
+                if (saved.widgets && Array.isArray(saved.widgets)) {
+                    saved.widgets.forEach(w => addWidgetToDOM(w, true));
+                }
+            } catch (e) { console.error("URL Load failed", e); }
+        }
+
+        document.getElementById('btn-save').addEventListener('click', () => {
+            const encoded = btoa(encodeURIComponent(JSON.stringify(State)));
+            const url = `${window.location.origin}${window.location.pathname}#${encoded}`;
+            try {
+                // Clipboard fallback logic
+                const tempInput = document.createElement("input");
+                tempInput.value = url;
+                document.body.appendChild(tempInput);
+                tempInput.select();
+                document.execCommand("copy");
+                document.body.removeChild(tempInput);
+                window.location.hash = encoded;
+                
+                const txt = document.getElementById('save-text');
+                txt.innerText = "Link Copied!";
+                setTimeout(() => txt.innerText = "Save & Share", 3000);
+            } catch (e) { alert("Failed to copy link."); }
+        });
+
+        // ==========================================
+        // UI INTERACTIONS
+        // ==========================================
+        document.getElementById('btn-fullscreen').addEventListener('click', () => {
+            if (!document.fullscreenElement) document.documentElement.requestFullscreen();
+            else if (document.exitFullscreen) document.exitFullscreen();
+        });
+
+        document.getElementById('btn-clear').addEventListener('click', () => {
+            workspace.innerHTML = '';
+            State.widgets = [];
+            checkEmptyState();
+        });
+
+        // Background Panel Logic
+        const bgPanel = document.getElementById('bg-panel');
+        document.getElementById('btn-bg').addEventListener('click', () => {
+            bgPanel.classList.toggle('hidden');
+        });
+        document.getElementById('close-bg').addEventListener('click', () => {
+            bgPanel.classList.add('hidden');
+        });
+
+        function initBackgroundPanel() {
+            const grid = document.getElementById('bg-grid');
+            BACKGROUNDS.forEach(bg => {
+                const btn = document.createElement('button');
+                btn.className = `h-16 rounded-xl overflow-hidden border-2 border-transparent hover:scale-105 transition-transform ${bg.type === 'image' ? '' : bg.css}`;
+                if (bg.type === 'image') {
+                    btn.innerHTML = `<img src="${bg.url}" class="w-full h-full object-cover">`;
+                }
+                btn.onclick = () => applyBackground(bg);
+                grid.appendChild(btn);
+            });
+        }
+
+        function applyBackground(bg) {
+            State.background = bg;
+            appBody.className = `bg-slate-900 transition-colors duration-700 bg-cover bg-center select-none ${bg.type !== 'image' ? bg.css : ''}`;
+            if (bg.type === 'image') {
+                appBody.style.backgroundImage = `url(${bg.url})`;
+                bgOverlay.style.opacity = '1';
+            } else {
+                appBody.style.backgroundImage = 'none';
+                bgOverlay.style.opacity = '0';
+            }
+        }
+
+        function setTheme(theme) {
+            State.theme = theme;
+            // Update active buttons
+            document.querySelectorAll('.theme-btn').forEach(btn => {
+                if (btn.dataset.theme === theme) {
+                    btn.className = "theme-btn px-3 py-1.5 text-xs font-black uppercase rounded-xl transition-all bg-white text-indigo-900 shadow-sm";
+                } else {
+                    btn.className = "theme-btn px-3 py-1.5 text-xs font-black uppercase rounded-xl transition-all text-white hover:bg-white/20";
+                }
+            });
+            // Update existing widgets
+            document.querySelectorAll('.widget-wrapper').forEach(w => {
+                w.className = `widget-wrapper pointer-events-auto absolute rounded-[1.5rem] flex flex-col overflow-hidden transition-shadow duration-300 theme-${theme} widget-anim`;
+            });
+        }
+
+        // Dock Spawners
+        document.querySelectorAll('.dock-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const type = btn.dataset.type;
+                spawnWidget(type);
+            });
+        });
+
+        function spawnWidget(type) {
+            const defaults = {
+                clock: { w: 300, h: 220 },
+                timer: { w: 320, h: 320 },
+                stopwatch: { w: 300, h: 280 },
+                timetable: { w: 380, h: 400 },
+                symbols: { w: 320, h: 320 },
+                text: { w: 400, h: 300 },
+                draw: { w: 450, h: 380 }
+            };
+            const d = defaults[type] || { w: 300, h: 300 };
+            const widget = {
+                id: generateId(),
+                type: type,
+                x: (window.innerWidth / 2) - (d.w / 2) + (Math.random() * 40 - 20),
+                y: (window.innerHeight / 2) - (d.h / 2) + (Math.random() * 40 - 20) - 50,
+                w: d.w,
+                h: d.h,
+                data: {}
+            };
+            addWidgetToDOM(widget, false);
+        }
+
+        // ==========================================
+        // WIDGET DOM MANAGEMENT
+        // ==========================================
+        function addWidgetToDOM(widget, isLoad) {
+            if (!isLoad) State.widgets.push(widget);
+            
+            const el = document.createElement('div');
+            el.id = `widget-${widget.id}`;
+            el.className = `widget-wrapper pointer-events-auto absolute rounded-[1.5rem] flex flex-col overflow-hidden transition-shadow duration-300 theme-${State.theme} widget-anim`;
+            el.style.left = `${widget.x}px`;
+            el.style.top = `${widget.y}px`;
+            el.style.width = `${widget.w}px`;
+            el.style.height = `${widget.h}px`;
+            el.style.zIndex = ++State.maxZ;
+
+            // Header (Drag handle)
+            const header = document.createElement('div');
+            header.className = "drag-handle h-10 flex flex-shrink-0 items-center justify-between px-4 cursor-grab active:cursor-grabbing border-b border-black/[0.05] bg-black/[0.03] hover:bg-black/[0.06] transition-colors select-none";
+            header.innerHTML = `
+                <div class="flex items-center space-x-2 opacity-50">
+                    <i data-lucide="grip-horizontal" class="w-4 h-4"></i>
+                    <span class="text-[10px] font-black uppercase tracking-widest">${widget.type}</span>
+                </div>
+                <button class="close-btn p-1.5 hover:bg-red-500 hover:text-white rounded-lg opacity-60 hover:opacity-100 transition-all">
+                    <i data-lucide="x" class="w-3 h-3"></i>
+                </button>
+            `;
+
+            // Content Area
+            const content = document.createElement('div');
+            content.className = "p-5 flex-grow flex flex-col overflow-hidden relative";
+            
+            // Render specific tool
+            const cleanupFn = renderWidgetContent(widget, content);
+
+            // Resize Handle
+            const resizer = document.createElement('div');
+            resizer.className = "resize-handle absolute bottom-1 right-1 w-5 h-5 cursor-se-resize flex items-end justify-end group p-1 z-20";
+            resizer.innerHTML = `<svg width="8" height="8" viewBox="0 0 10 10" class="opacity-30 group-hover:opacity-100 transition-opacity fill-current"><line x1="10" y1="0" x2="0" y2="10" stroke="currentColor" stroke-width="1.5"/><line x1="10" y1="4" x2="4" y2="10" stroke="currentColor" stroke-width="1.5"/></svg>`;
+
+            el.appendChild(header);
+            el.appendChild(content);
+            el.appendChild(resizer);
+            workspace.appendChild(el);
+            
+            lucide.createIcons({ root: el });
+            checkEmptyState();
+
+            // --- Event Listeners: Drag, Resize, Close ---
+            el.addEventListener('mousedown', () => { el.style.zIndex = ++State.maxZ; });
+            el.addEventListener('touchstart', () => { el.style.zIndex = ++State.maxZ; }, {passive:true});
+
+            header.querySelector('.close-btn').onclick = (e) => {
+                e.stopPropagation();
+                if(cleanupFn) cleanupFn();
+                workspace.removeChild(el);
+                State.widgets = State.widgets.filter(w => w.id !== widget.id);
+                checkEmptyState();
+            };
+
+            // Dragging Logic
+            let isDragging = false;
+            let dragStartX, dragStartY;
+            
+            header.addEventListener('pointerdown', (e) => {
+                if (e.target.closest('.close-btn')) return;
+                isDragging = true;
+                const rect = el.getBoundingClientRect();
+                dragStartX = e.clientX - rect.left;
+                dragStartY = e.clientY - rect.top;
+                header.classList.add('cursor-grabbing');
+                el.classList.remove('widget-anim'); // Remove anim class so dragging is smooth
+            });
+
+            // Resizing Logic
+            let isResizing = false;
+            let resizeStartX, resizeStartY, startW, startH;
+
+            resizer.addEventListener('pointerdown', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                isResizing = true;
+                const rect = el.getBoundingClientRect();
+                startW = rect.width;
+                startH = rect.height;
+                resizeStartX = e.clientX;
+                resizeStartY = e.clientY;
+                el.classList.remove('widget-anim');
+            });
+
+            // Global Pointer Handlers for Drag/Resize
+            const onPointerMove = (e) => {
+                if (isDragging) {
+                    e.preventDefault();
+                    widget.x = e.clientX - dragStartX;
+                    widget.y = e.clientY - dragStartY;
+                    el.style.left = `${widget.x}px`;
+                    el.style.top = `${widget.y}px`;
+                } else if (isResizing) {
+                    e.preventDefault();
+                    widget.w = Math.max(250, startW + (e.clientX - resizeStartX));
+                    widget.h = Math.max(200, startH + (e.clientY - resizeStartY));
+                    el.style.width = `${widget.w}px`;
+                    el.style.height = `${widget.h}px`;
+                    if(widget.onResize) widget.onResize(); // Notify internal widget content
+                }
+            };
+
+            const onPointerUp = () => {
+                if (isDragging) {
+                    isDragging = false;
+                    header.classList.remove('cursor-grabbing');
+                }
+                if (isResizing) {
+                    isResizing = false;
+                }
+            };
+
+            document.addEventListener('pointermove', onPointerMove);
+            document.addEventListener('pointerup', onPointerUp);
+
+            // Save cleanup to remove listeners if widget closed
+            el._cleanupDom = () => {
+                document.removeEventListener('pointermove', onPointerMove);
+                document.removeEventListener('pointerup', onPointerUp);
+            };
+        }
+
+        // ==========================================
+        // WIDGET RENDERERS
+        // ==========================================
+        function renderWidgetContent(widget, container) {
+            switch(widget.type) {
+                case 'clock': return renderClock(widget, container);
+                case 'timer': return renderTimer(widget, container);
+                case 'stopwatch': return renderStopwatch(widget, container);
+                case 'timetable': return renderTimetable(widget, container);
+                case 'symbols': return renderSymbols(widget, container);
+                case 'text': return renderText(widget, container);
+                case 'draw': return renderDraw(widget, container);
+            }
+        }
+
+        // --- 1. CLOCK ---
+        function renderClock(widget, container) {
+            widget.data.isDigital = widget.data.isDigital !== false;
+            
+            container.innerHTML = `
+                <div class="flex flex-col items-center justify-center h-full w-full">
+                    <div id="digital-view-${widget.id}" class="text-center w-full ${!widget.data.isDigital ? 'hidden' : ''}">
+                        <div class="time-display text-5xl font-black tracking-tighter"></div>
+                        <div class="date-display text-sm font-bold uppercase tracking-wider text-indigo-500 mt-2"></div>
+                    </div>
+                    <canvas id="analog-view-${widget.id}" width="160" height="160" class="${widget.data.isDigital ? 'hidden' : ''}"></canvas>
+                    <button id="toggle-${widget.id}" class="mt-auto px-3 py-1.5 text-[10px] font-black uppercase rounded-lg hover:bg-black/5 opacity-50 hover:opacity-100 transition-all">
+                        Switch Mode
+                    </button>
+                </div>
+            `;
+
+            const digitalView = container.querySelector(`#digital-view-${widget.id}`);
+            const analogView = container.querySelector(`#analog-view-${widget.id}`);
+            const timeDisp = container.querySelector('.time-display');
+            const dateDisp = container.querySelector('.date-display');
+            const toggleBtn = container.querySelector(`#toggle-${widget.id}`);
+            const ctx = analogView.getContext('2d');
+
+            function drawAnalog(time) {
+                const radius = 80;
+                ctx.clearRect(0, 0, 160, 160);
+                ctx.save();
+                ctx.translate(radius, radius);
+                
+                // Face
+                ctx.beginPath();
+                ctx.arc(0, 0, radius - 6, 0, 2 * Math.PI);
+                ctx.strokeStyle = '#4f46e5';
+                ctx.lineWidth = 4;
+                ctx.stroke();
+
+                const hr = time.getHours();
+                const min = time.getMinutes();
+                const sec = time.getSeconds();
+
+                // Hands
+                const drawHand = (pos, length, width, color) => {
+                    ctx.beginPath();
+                    ctx.lineWidth = width;
+                    ctx.lineCap = 'round';
+                    ctx.strokeStyle = color;
+                    ctx.moveTo(0, 0);
+                    ctx.rotate(pos);
+                    ctx.lineTo(0, -length);
+                    ctx.stroke();
+                    ctx.rotate(-pos);
+                };
+
+                drawHand((hr % 12 * Math.PI / 6) + (min * Math.PI / 360), radius * 0.5, 4, 'currentColor');
+                drawHand((min * Math.PI / 30) + (sec * Math.PI / 1800), radius * 0.7, 3, 'currentColor');
+                drawHand(sec * Math.PI / 30, radius * 0.85, 2, '#ef4444');
+
+                ctx.restore();
+            }
+
+            function update() {
+                const now = new Date();
+                timeDisp.innerText = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                dateDisp.innerText = now.toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' });
+                if (!widget.data.isDigital) drawAnalog(now);
+            }
+
+            toggleBtn.onclick = () => {
+                widget.data.isDigital = !widget.data.isDigital;
+                if(widget.data.isDigital) {
+                    digitalView.classList.remove('hidden');
+                    analogView.classList.add('hidden');
+                } else {
+                    digitalView.classList.add('hidden');
+                    analogView.classList.remove('hidden');
+                }
+                update();
+            };
+
+            update();
+            const interval = setInterval(update, 1000);
+            return () => clearInterval(interval); // Cleanup
+        }
+
+        // --- 2. TIMER ---
+        function renderTimer(widget, container) {
+            let total = widget.data.total || 300;
+            let left = widget.data.left !== undefined ? widget.data.left : 300;
+            let isRunning = false;
+            let interval;
+            let alarmPlayed = false;
+
+            container.innerHTML = `
+                <div class="flex flex-col items-center justify-between h-full select-none">
+                    <div class="relative flex items-center justify-center w-36 h-36">
+                        <svg class="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
+                            <circle cx="50" cy="50" r="45" class="stroke-current opacity-10 fill-none" stroke-width="5"></circle>
+                            <circle id="ring-${widget.id}" cx="50" cy="50" r="45" class="stroke-amber-500 fill-none transition-all duration-1000 ease-linear" stroke-width="5" stroke-dasharray="283" stroke-dashoffset="0"></circle>
+                        </svg>
+                        <div id="time-${widget.id}" class="absolute text-4xl font-black font-mono tracking-tighter text-center"></div>
+                    </div>
+                    
+                    <div class="flex space-x-2 mt-4">
+                        <button class="quick-btn px-2.5 py-1 text-xs font-bold rounded-lg bg-black/5 hover:bg-black/10 transition-colors" data-add="30">+30s</button>
+                        <button class="quick-btn px-2.5 py-1 text-xs font-bold rounded-lg bg-black/5 hover:bg-black/10 transition-colors" data-add="60">+1m</button>
+                        <button class="quick-btn px-2.5 py-1 text-xs font-bold rounded-lg bg-black/5 hover:bg-black/10 transition-colors" data-add="300">+5m</button>
+                    </div>
+
+                    <div class="flex space-x-3 mt-4">
+                        <button id="play-${widget.id}" class="w-24 py-2.5 rounded-full text-white font-bold text-sm shadow-md transition-all active:scale-95 bg-green-500 hover:bg-green-600">Start</button>
+                        <button id="reset-${widget.id}" class="p-2.5 rounded-full bg-black/5 hover:bg-black/10 transition-all active:scale-95"><i data-lucide="rotate-ccw" class="w-4 h-4"></i></button>
+                    </div>
+                </div>
+            `;
+
+            const ring = container.querySelector(`#ring-${widget.id}`);
+            const timeDisplay = container.querySelector(`#time-${widget.id}`);
+            const playBtn = container.querySelector(`#play-${widget.id}`);
+            const resetBtn = container.querySelector(`#reset-${widget.id}`);
+
+            function updateUI() {
+                const mins = Math.floor(left / 60);
+                const secs = left % 60;
+                timeDisplay.innerText = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+                
+                const progress = total > 0 ? (left / total) * 100 : 0;
+                ring.style.strokeDashoffset = 283 - (283 * progress) / 100;
+                
+                widget.data.total = total;
+                widget.data.left = left;
+            }
+
+            function tick() {
+                if (left <= 0) {
+                    clearInterval(interval);
+                    isRunning = false;
+                    playBtn.innerText = "Start";
+                    playBtn.className = "w-24 py-2.5 rounded-full text-white font-bold text-sm shadow-md transition-all active:scale-95 bg-green-500 hover:bg-green-600";
+                    if (!alarmPlayed) { playBuzzer(); alarmPlayed = true; }
+                    return;
+                }
+                left--;
+                updateUI();
+            }
+
+            playBtn.onclick = () => {
+                if (isRunning) {
+                    clearInterval(interval);
+                    isRunning = false;
+                    playBtn.innerText = "Start";
+                    playBtn.className = "w-24 py-2.5 rounded-full text-white font-bold text-sm shadow-md transition-all active:scale-95 bg-green-500 hover:bg-green-600";
+                } else {
+                    if (left === 0) left = total;
+                    interval = setInterval(tick, 1000);
+                    isRunning = true;
+                    alarmPlayed = false;
+                    playBtn.innerText = "Pause";
+                    playBtn.className = "w-24 py-2.5 rounded-full text-white font-bold text-sm shadow-md transition-all active:scale-95 bg-amber-500 hover:bg-amber-600";
+                }
+            };
+
+            resetBtn.onclick = () => {
+                clearInterval(interval);
+                isRunning = false;
+                left = total;
+                alarmPlayed = false;
+                playBtn.innerText = "Start";
+                playBtn.className = "w-24 py-2.5 rounded-full text-white font-bold text-sm shadow-md transition-all active:scale-95 bg-green-500 hover:bg-green-600";
+                updateUI();
+            };
+
+            container.querySelectorAll('.quick-btn').forEach(btn => {
+                btn.onclick = () => {
+                    const add = parseInt(btn.dataset.add);
+                    total += add;
+                    left += add;
+                    updateUI();
+                };
+            });
+
+            updateUI();
+            return () => clearInterval(interval);
+        }
+
+        // --- 3. STOPWATCH ---
+        function renderStopwatch(widget, container) {
+            let ms = 0;
+            let isRunning = false;
+            let interval;
+            let laps = [];
+
+            container.innerHTML = `
+                <div class="flex flex-col h-full select-none justify-between">
+                    <div class="text-center py-2">
+                        <div id="sw-${widget.id}" class="text-5xl font-mono font-black tracking-tighter text-purple-600">00:00.00</div>
+                    </div>
+                    <div id="laps-${widget.id}" class="flex-grow my-2 overflow-y-auto space-y-1 pr-2"></div>
+                    <div class="flex space-x-2 mt-auto">
+                        <button id="play-${widget.id}" class="flex-grow py-2.5 rounded-xl font-bold text-white transition-all active:scale-95 shadow-md bg-purple-600 hover:bg-purple-700">Start</button>
+                        <button id="lap-${widget.id}" class="px-4 py-2.5 rounded-xl bg-purple-500/20 text-purple-600 hover:bg-purple-500/30 font-bold transition-all active:scale-95 hidden">Lap</button>
+                        <button id="reset-${widget.id}" class="p-2.5 rounded-xl bg-black/5 hover:bg-black/10 transition-all active:scale-95"><i data-lucide="rotate-ccw" class="w-4 h-4"></i></button>
+                    </div>
+                </div>
+            `;
+
+            const display = container.querySelector(`#sw-${widget.id}`);
+            const lapsContainer = container.querySelector(`#laps-${widget.id}`);
+            const playBtn = container.querySelector(`#play-${widget.id}`);
+            const lapBtn = container.querySelector(`#lap-${widget.id}`);
+            const resetBtn = container.querySelector(`#reset-${widget.id}`);
+
+            function format(timeVal) {
+                const m = Math.floor(timeVal / 6000);
+                const s = Math.floor((timeVal % 6000) / 100);
+                const centi = timeVal % 100;
+                return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}.${String(centi).padStart(2, '0')}`;
+            }
+
+            function tick() { ms++; display.innerText = format(ms); }
+
+            playBtn.onclick = () => {
+                if(isRunning) {
+                    clearInterval(interval);
+                    isRunning = false;
+                    playBtn.innerText = "Start";
+                    playBtn.className = "flex-grow py-2.5 rounded-xl font-bold text-white transition-all active:scale-95 shadow-md bg-purple-600 hover:bg-purple-700";
+                    lapBtn.classList.add('hidden');
+                } else {
+                    interval = setInterval(tick, 10);
+                    isRunning = true;
+                    playBtn.innerText = "Pause";
+                    playBtn.className = "flex-grow py-2.5 rounded-xl font-bold text-white transition-all active:scale-95 shadow-md bg-amber-500 hover:bg-amber-600";
+                    lapBtn.classList.remove('hidden');
+                }
+            };
+
+            lapBtn.onclick = () => {
+                laps.unshift(ms);
+                renderLaps();
+            };
+
+            resetBtn.onclick = () => {
+                clearInterval(interval);
+                isRunning = false;
+                ms = 0;
+                laps = [];
+                display.innerText = format(ms);
+                playBtn.innerText = "Start";
+                playBtn.className = "flex-grow py-2.5 rounded-xl font-bold text-white transition-all active:scale-95 shadow-md bg-purple-600 hover:bg-purple-700";
+                lapBtn.classList.add('hidden');
+                renderLaps();
+            };
+
+            function renderLaps() {
+                lapsContainer.innerHTML = laps.map((l, i) => `
+                    <div class="flex justify-between items-center text-xs border-b border-black/5 py-1.5">
+                        <span class="font-bold opacity-50">Lap ${laps.length - i}</span>
+                        <span class="font-mono font-bold">${format(l)}</span>
+                    </div>
+                `).join('');
+            }
+
+            return () => clearInterval(interval);
+        }
+
+        // --- 4. TIMETABLE ---
+        function renderTimetable(widget, container) {
+            let rows = widget.data.rows || [
+                { time: '09:00', task: 'Morning Session', color: 'border-indigo-500 bg-indigo-500/10 text-indigo-700' },
+                { time: '10:00', task: 'Reading', color: 'border-emerald-500 bg-emerald-500/10 text-emerald-700' }
+            ];
+
+            const colors = [
+                'border-indigo-500 bg-indigo-500/10 text-indigo-700',
+                'border-amber-500 bg-amber-500/10 text-amber-700',
+                'border-emerald-500 bg-emerald-500/10 text-emerald-700',
+                'border-pink-500 bg-pink-500/10 text-pink-700',
+                'border-sky-500 bg-sky-500/10 text-sky-700'
+            ];
+
+            container.innerHTML = `
+                <div class="flex flex-col h-full w-full justify-between">
+                    <div id="tt-rows-${widget.id}" class="flex-grow overflow-y-auto space-y-2 mb-3 pr-1"></div>
+                    <button id="add-${widget.id}" class="flex items-center justify-center space-x-2 py-2.5 bg-black/5 hover:bg-black/10 rounded-xl font-bold text-[10px] uppercase tracking-wider transition-all active:scale-95">
+                        <i data-lucide="plus" class="w-3 h-3"></i> <span>Add Row</span>
+                    </button>
+                </div>
+            `;
+
+            const rowsContainer = container.querySelector(`#tt-rows-${widget.id}`);
+            
+            function render() {
+                rowsContainer.innerHTML = '';
+                rows.forEach((row, i) => {
+                    const rowEl = document.createElement('div');
+                    rowEl.className = `flex items-center space-x-2 p-2.5 rounded-xl border-l-4 ${row.color} transition-all shadow-sm`;
+                    
+                    // Theming specific overrides for dark mode compatibility
+                    if(State.theme === 'dark') rowEl.classList.add('text-white', 'mix-blend-lighten');
+
+                    rowEl.innerHTML = `
+                        <input type="text" class="font-bold text-xs bg-transparent w-16 border-b border-transparent focus:border-current" value="${row.time}">
+                        <input type="text" class="text-sm font-semibold bg-transparent flex-grow border-b border-transparent focus:border-current" value="${row.task}">
+                        <button class="del-btn p-1 hover:bg-black/10 rounded-lg transition-colors opacity-50 hover:opacity-100"><i data-lucide="trash-2" class="w-3 h-3"></i></button>
+                    `;
+
+                    const inputs = rowEl.querySelectorAll('input');
+                    inputs[0].onchange = (e) => { rows[i].time = e.target.value; widget.data.rows = rows; };
+                    inputs[1].onchange = (e) => { rows[i].task = e.target.value; widget.data.rows = rows; };
+                    rowEl.querySelector('.del-btn').onclick = () => { rows.splice(i, 1); widget.data.rows = rows; render(); };
+                    
+                    rowsContainer.appendChild(rowEl);
+                });
+                lucide.createIcons({ root: rowsContainer });
+            }
+
+            container.querySelector(`#add-${widget.id}`).onclick = () => {
+                rows.push({ time: '12:00', task: 'New Task', color: colors[rows.length % colors.length] });
+                widget.data.rows = rows;
+                render();
+            };
+
+            render();
+            return null;
+        }
+
+        // --- 5. WORK SYMBOLS ---
+        function renderSymbols(widget, container) {
+            const symbols = [
+                { icon: 'volume-x', label: 'Silence', desc: 'No talking, full concentration', color: 'text-red-500 bg-red-500/10 ring-red-400' },
+                { icon: 'volume-1', label: 'Whisper', desc: 'Speak softly to direct neighbor', color: 'text-amber-500 bg-amber-500/10 ring-amber-400' },
+                { icon: 'users', label: 'Ask Neighbor', desc: 'Collaborative peer check-in', color: 'text-blue-500 bg-blue-500/10 ring-blue-400' },
+                { icon: 'users-round', label: 'Groupwork', desc: 'Brainstorm & build together', color: 'text-emerald-500 bg-emerald-500/10 ring-emerald-400' },
+            ];
+            
+            let current = widget.data.index || 0;
+
+            container.innerHTML = `
+                <div class="flex flex-col justify-between h-full select-none">
+                    <div class="grid grid-cols-2 gap-3" id="sym-grid-${widget.id}"></div>
+                    <div class="mt-3 text-center bg-black/5 p-2 rounded-xl border border-dashed border-black/20">
+                        <p id="sym-desc-${widget.id}" class="text-xs font-bold opacity-60"></p>
+                    </div>
+                </div>
+            `;
+
+            const grid = container.querySelector(`#sym-grid-${widget.id}`);
+            const desc = container.querySelector(`#sym-desc-${widget.id}`);
+
+            function render() {
+                grid.innerHTML = symbols.map((sym, i) => {
+                    const active = i === current;
+                    return `
+                        <button class="sym-btn p-3 border rounded-2xl flex flex-col items-center justify-center text-center transition-all duration-300 ${active ? `${sym.color} ring-2 scale-105 shadow-md border-transparent` : 'border-black/10 opacity-60 hover:opacity-100 hover:bg-black/5'}" data-index="${i}">
+                            <i data-lucide="${sym.icon}" class="w-8 h-8 mb-2"></i>
+                            <div class="text-[10px] font-black uppercase tracking-wider">${sym.label}</div>
+                        </button>
+                    `;
+                }).join('');
+                
+                desc.innerText = symbols[current].desc;
+                lucide.createIcons({ root: grid });
+
+                grid.querySelectorAll('.sym-btn').forEach(btn => {
+                    btn.onclick = () => {
+                        current = parseInt(btn.dataset.index);
+                        widget.data.index = current;
+                        render();
+                    };
+                });
+            }
+
+            render();
+            return null;
+        }
+
+        // --- 6. TEXT WIDGET ---
+        function renderText(widget, container) {
+            let fs = widget.data.fontSize || 18;
+            let align = widget.data.alignment || 'left';
+
+            container.innerHTML = `
+                <div class="flex flex-col h-full w-full justify-between">
+                    <div class="flex items-center justify-between mb-3 border-b border-black/10 pb-2 text-[10px] font-bold uppercase tracking-wider opacity-60">
+                        <div class="flex items-center space-x-2">
+                            <span>Size:</span>
+                            <input type="range" id="fs-${widget.id}" min="12" max="48" value="${fs}" class="w-16">
+                        </div>
+                        <div class="flex space-x-1" id="align-${widget.id}">
+                            <button data-align="left" class="px-1.5 py-1 rounded hover:bg-black/10 ${align==='left'?'bg-black/10':''}"><i data-lucide="align-left" class="w-3 h-3"></i></button>
+                            <button data-align="center" class="px-1.5 py-1 rounded hover:bg-black/10 ${align==='center'?'bg-black/10':''}"><i data-lucide="align-center" class="w-3 h-3"></i></button>
+                            <button data-align="right" class="px-1.5 py-1 rounded hover:bg-black/10 ${align==='right'?'bg-black/10':''}"><i data-lucide="align-right" class="w-3 h-3"></i></button>
+                        </div>
+                    </div>
+                    <textarea id="txt-${widget.id}" class="w-full flex-grow bg-transparent resize-none outline-none leading-relaxed font-medium placeholder-current opacity-80 transition-all" placeholder="Type instructions here..."></textarea>
+                </div>
+            `;
+
+            const txt = container.querySelector(`#txt-${widget.id}`);
+            txt.value = widget.data.text || "";
+            txt.style.fontSize = `${fs}px`;
+            txt.style.textAlign = align;
+
+            txt.addEventListener('input', (e) => widget.data.text = e.target.value);
+
+            container.querySelector(`#fs-${widget.id}`).addEventListener('input', (e) => {
+                fs = e.target.value;
+                txt.style.fontSize = `${fs}px`;
+                widget.data.fontSize = fs;
+            });
+
+            const alignBtns = container.querySelectorAll(`#align-${widget.id} button`);
+            alignBtns.forEach(btn => {
+                btn.onclick = () => {
+                    align = btn.dataset.align;
+                    txt.style.textAlign = align;
+                    widget.data.alignment = align;
+                    alignBtns.forEach(b => b.classList.remove('bg-black/10'));
+                    btn.classList.add('bg-black/10');
+                };
+            });
+
+            return null;
+        }
+
+        // --- 7. DRAWING CANVAS ---
+        function renderDraw(widget, container) {
+            let color = '#ffffff';
+            if (State.theme === 'light') color = '#000000';
+            
+            let brushSize = 4;
+            let paths = widget.data.paths || [];
+            let currentPath = null;
+            let isDrawing = false;
+
+            container.innerHTML = `
+                <div class="flex flex-col items-center h-full justify-between">
+                    <div class="flex w-full justify-between items-center mb-2">
+                        <div class="flex space-x-1.5" id="colors-${widget.id}">
+                            ${['#ffffff', '#000000', '#ef4444', '#3b82f6', '#10b981', '#f59e0b'].map(c => 
+                                `<button data-c="${c}" class="w-5 h-5 rounded-full border-2 border-transparent transition-transform hover:scale-110" style="background:${c}; ${c==='#ffffff'?'border-color:#ccc':''}"></button>`
+                            ).join('')}
+                        </div>
+                        <div class="flex space-x-2 text-[10px] font-bold uppercase tracking-wider">
+                            <button id="undo-${widget.id}" class="px-2 py-1 bg-black/5 hover:bg-black/10 rounded">Undo</button>
+                            <button id="clear-${widget.id}" class="px-2 py-1 text-red-500 hover:bg-red-500/10 rounded">Clear</button>
+                        </div>
+                    </div>
+                    <div class="relative w-full flex-grow bg-black/5 rounded-2xl overflow-hidden border border-black/10">
+                        <canvas id="cvs-${widget.id}" class="absolute inset-0 w-full h-full cursor-crosshair touch-none"></canvas>
+                    </div>
+                </div>
+            `;
+
+            const canvas = container.querySelector(`#cvs-${widget.id}`);
+            const ctx = canvas.getContext('2d');
+
+            function syncCanvasSize() {
+                const rect = canvas.parentElement.getBoundingClientRect();
+                if(canvas.width !== rect.width || canvas.height !== rect.height) {
+                    canvas.width = rect.width;
+                    canvas.height = rect.height;
+                    redraw();
+                }
+            }
+
+            // Sync sizing on resize event injected from widget wrapper
+            widget.onResize = () => { syncCanvasSize(); };
+            
+            // Initial sizing
+            setTimeout(syncCanvasSize, 50);
+
+            function redraw() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                ctx.lineCap = 'round';
+                ctx.lineJoin = 'round';
+                paths.forEach(p => {
+                    if(!p.points.length) return;
+                    ctx.beginPath();
+                    ctx.strokeStyle = p.color;
+                    ctx.lineWidth = p.size;
+                    ctx.moveTo(p.points[0].x, p.points[0].y);
+                    for(let i=1; i<p.points.length; i++) ctx.lineTo(p.points[i].x, p.points[i].y);
+                    ctx.stroke();
+                });
+            }
+
+            function getPos(e) {
+                const rect = canvas.getBoundingClientRect();
+                return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+            }
+
+            canvas.addEventListener('pointerdown', (e) => {
+                isDrawing = true;
+                const pos = getPos(e);
+                currentPath = { color, size: brushSize, points: [pos] };
+                ctx.beginPath();
+                ctx.strokeStyle = color;
+                ctx.lineWidth = brushSize;
+                ctx.lineCap = 'round';
+                ctx.moveTo(pos.x, pos.y);
+            });
+
+            canvas.addEventListener('pointermove', (e) => {
+                if(!isDrawing) return;
+                const pos = getPos(e);
+                const last = currentPath.points[currentPath.points.length - 1];
+                if(Math.hypot(pos.x - last.x, pos.y - last.y) > 2) { // throttle
+                    currentPath.points.push(pos);
+                    ctx.lineTo(pos.x, pos.y);
+                    ctx.stroke();
+                }
+            });
+
+            const stopDraw = () => {
+                if(isDrawing) {
+                    isDrawing = false;
+                    paths.push(currentPath);
+                    widget.data.paths = paths;
+                }
+            };
+            canvas.addEventListener('pointerup', stopDraw);
+            canvas.addEventListener('pointerleave', stopDraw);
+
+            container.querySelectorAll(`#colors-${widget.id} button`).forEach(btn => {
+                btn.onclick = () => {
+                    color = btn.dataset.c;
+                    container.querySelectorAll(`#colors-${widget.id} button`).forEach(b => b.classList.remove('scale-125', 'shadow-md'));
+                    btn.classList.add('scale-125', 'shadow-md');
+                };
+            });
+
+            container.querySelector(`#undo-${widget.id}`).onclick = () => { paths.pop(); widget.data.paths = paths; redraw(); };
+            container.querySelector(`#clear-${widget.id}`).onclick = () => { paths = []; widget.data.paths = paths; redraw(); };
+
+            return null;
+        }
+    </script>
+</body>
+</html>
