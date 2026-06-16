@@ -12,16 +12,15 @@
     <script src="https://unpkg.com/lucide@latest"></script>
 
     <style>
-        /* Custom Styles & Animations */
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
 
         body {
             font-family: 'Inter', sans-serif;
             overflow: hidden;
-            touch-action: none; /* Prevent browser handling of gestures */
+            touch-action: none;
         }
 
-        /* Custom Scrollbar for widgets */
+        /* Custom Scrollbar */
         ::-webkit-scrollbar {
             width: 6px;
             height: 6px;
@@ -37,7 +36,7 @@
             background: rgba(0, 0, 0, 0.3);
         }
 
-        /* Widget Animations */
+        /* Pop Animation */
         @keyframes popIn {
             0% { opacity: 0; transform: scale(0.9) translateY(10px); }
             100% { opacity: 1; transform: scale(1) translateY(0); }
@@ -70,7 +69,7 @@
             color: #1f2937;
         }
 
-        /* Transparent Ghost Theme */
+        /* Transparent Theme */
         .theme-transparent {
             background: transparent !important;
             border-color: transparent !important;
@@ -107,10 +106,8 @@
         }
         .theme-transparent canvas { background: transparent !important; border-color: transparent !important; }
 
-        /* Inputs reset */
         input:focus, textarea:focus { outline: none; }
         
-        /* Range Slider/Spinbox resets */
         input[type=number]::-webkit-inner-spin-button, 
         input[type=number]::-webkit-outer-spin-button { 
             -webkit-appearance: none; 
@@ -120,12 +117,12 @@
             -moz-appearance: textfield;
         }
 
-        /* Range Slider Styling */
+        /* Sliders */
         input[type=range] {
             -webkit-appearance: none;
-            background: rgba(0,0,0,0.1);
-            height: 4px;
-            border-radius: 2px;
+            background: rgba(0,0,0,0.15);
+            height: 6px;
+            border-radius: 3px;
         }
         input[type=range]::-webkit-slider-thumb {
             -webkit-appearance: none;
@@ -140,13 +137,13 @@
 </head>
 <body id="app-body" class="bg-slate-900 transition-colors duration-700 bg-cover bg-center bg-no-repeat bg-fixed w-screen h-screen overflow-hidden select-none">
 
-    <!-- Darkener Overlay for readability -->
-    <div id="bg-overlay" class="absolute inset-0 bg-black/20 pointer-events-none z-0 transition-opacity duration-500"></div>
+    <!-- Background overlays -->
+    <div id="bg-overlay" class="absolute inset-0 bg-black/25 pointer-events-none z-0 transition-opacity duration-500"></div>
 
-    <!-- Workspace Container (Widgets go here) -->
+    <!-- Workspace Container (Holds Widgets) -->
     <div id="workspace" class="absolute inset-0 z-10 overflow-hidden pointer-events-none"></div>
 
-    <!-- Global Drawing Canvas -->
+    <!-- Global Annotation Drawing Canvas -->
     <canvas id="global-canvas" class="absolute inset-0 z-20 pointer-events-none"></canvas>
 
     <!-- Top Command Panel -->
@@ -185,7 +182,7 @@
         </div>
     </div>
 
-    <!-- Background Selector Popup -->
+    <!-- Background Panel Popup -->
     <div id="bg-panel" class="hidden absolute top-24 left-6 z-40 bg-white/95 backdrop-blur-2xl border border-zinc-200 p-5 rounded-3xl shadow-2xl w-96 transform transition-all">
         <div class="flex justify-between items-center mb-4">
             <h3 class="font-extrabold text-zinc-800 text-xs uppercase tracking-widest">Screen Backgrounds</h3>
@@ -193,9 +190,7 @@
                 <i data-lucide="x" class="w-4 h-4"></i>
             </button>
         </div>
-        <div id="bg-grid" class="grid grid-cols-4 gap-2">
-            <!-- Populated via JS -->
-        </div>
+        <div id="bg-grid" class="grid grid-cols-4 gap-2"></div>
         <div class="mt-4 pt-3 border-t border-zinc-200">
             <p class="text-[10px] font-bold text-zinc-500 uppercase mb-2">Custom Image/GIF URL</p>
             <div class="flex space-x-2">
@@ -206,22 +201,47 @@
     </div>
 
     <!-- Draw Mode Toolbar -->
-    <div id="draw-toolbar" class="hidden absolute bottom-8 left-1/2 transform -translate-x-1/2 z-40 bg-zinc-900/95 backdrop-blur-xl shadow-2xl rounded-2xl px-6 py-3 flex items-center space-x-4 border border-zinc-700">
-        <div class="text-xs font-bold text-teal-400 uppercase tracking-widest flex items-center space-x-2 mr-2">
-            <i data-lucide="pen-tool" class="w-4 h-4"></i> <span class="hidden sm:inline">Draw Mode</span>
+    <div id="draw-toolbar" class="hidden absolute bottom-8 left-1/2 transform -translate-x-1/2 z-40 bg-zinc-900/95 backdrop-blur-xl shadow-2xl rounded-2xl px-6 py-3 flex items-center space-x-4 border border-zinc-700 max-w-full overflow-x-auto">
+        <div class="text-xs font-bold text-teal-400 uppercase tracking-widest flex items-center space-x-2 mr-2 flex-shrink-0">
+            <i data-lucide="pen-tool" class="w-4 h-4"></i> <span>Draw Mode</span>
         </div>
-        <div class="flex space-x-2" id="global-colors">
-            <button data-c="#ef4444" class="w-6 h-6 rounded-full bg-red-500 border-2 border-transparent border-white scale-110 shadow-md transition-transform"></button>
-            <button data-c="#3b82f6" class="w-6 h-6 rounded-full bg-blue-500 border-2 border-transparent transition-transform"></button>
-            <button data-c="#10b981" class="w-6 h-6 rounded-full bg-emerald-500 border-2 border-transparent transition-transform"></button>
-            <button data-c="#f59e0b" class="w-6 h-6 rounded-full bg-amber-500 border-2 border-transparent transition-transform"></button>
-            <button data-c="#ffffff" class="w-6 h-6 rounded-full bg-white border-2 border-transparent transition-transform"></button>
+
+        <!-- Color Swatches -->
+        <div class="flex space-x-1 flex-shrink-0" id="global-colors">
+            <button data-c="#ef4444" class="w-6 h-6 rounded-full bg-red-500 border-2 border-transparent border-white scale-110 shadow-md transition-transform" title="Red"></button>
+            <button data-c="#3b82f6" class="w-6 h-6 rounded-full bg-blue-500 border-2 border-transparent transition-transform" title="Blue"></button>
+            <button data-c="#10b981" class="w-6 h-6 rounded-full bg-emerald-500 border-2 border-transparent transition-transform" title="Green"></button>
+            <button data-c="#f59e0b" class="w-6 h-6 rounded-full bg-amber-500 border-2 border-transparent transition-transform" title="Orange"></button>
+            <button data-c="#ffffff" class="w-6 h-6 rounded-full bg-white border-2 border-transparent transition-transform" title="White"></button>
+            <button data-c="#000000" class="w-6 h-6 rounded-full bg-black border-2 border-transparent transition-transform" title="Black"></button>
         </div>
-        <div class="w-px h-6 bg-zinc-700 mx-1"></div>
-        <button id="global-undo" class="text-zinc-400 hover:text-white px-2 py-1 text-xs font-bold uppercase transition-colors">Undo</button>
-        <button id="global-clear" class="text-red-400 hover:text-red-300 px-2 py-1 text-xs font-bold uppercase transition-colors">Clear</button>
-        <div class="w-px h-6 bg-zinc-700 mx-1"></div>
-        <button id="global-exit" class="bg-zinc-700 hover:bg-zinc-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold uppercase transition-all">Done</button>
+
+        <div class="w-px h-6 bg-zinc-700"></div>
+
+        <!-- Vector Shape Tools -->
+        <div class="flex items-center space-x-1 bg-zinc-800 p-1 rounded-xl flex-shrink-0" id="draw-shapes">
+            <button data-t="freehand" class="shape-btn p-1.5 rounded-lg bg-indigo-600 text-white" title="Freehand Brush"><i data-lucide="pencil" class="w-4 h-4"></i></button>
+            <button data-t="line" class="shape-btn p-1.5 rounded-lg text-zinc-400 hover:text-white" title="Straight Line"><i data-lucide="minus" class="w-4 h-4"></i></button>
+            <button data-t="arrow" class="shape-btn p-1.5 rounded-lg text-zinc-400 hover:text-white" title="Draw Arrow"><i data-lucide="arrow-up-right" class="w-4 h-4"></i></button>
+            <button data-t="rect" class="shape-btn p-1.5 rounded-lg text-zinc-400 hover:text-white" title="Draw Rectangle"><i data-lucide="square" class="w-4 h-4"></i></button>
+            <button data-t="circle" class="shape-btn p-1.5 rounded-lg text-zinc-400 hover:text-white" title="Draw Circle"><i data-lucide="circle" class="w-4 h-4"></i></button>
+            <button data-t="eraser" class="shape-btn p-1.5 rounded-lg text-zinc-400 hover:text-white" title="Eraser Tool"><i data-lucide="eraser" class="w-4 h-4"></i></button>
+        </div>
+
+        <div class="w-px h-6 bg-zinc-700"></div>
+
+        <!-- Brush Thickness -->
+        <div class="flex items-center space-x-2 text-zinc-400 text-xs flex-shrink-0">
+            <span>Size:</span>
+            <input type="range" id="draw-thickness" min="2" max="25" value="5" class="w-20">
+        </div>
+
+        <div class="w-px h-6 bg-zinc-700"></div>
+
+        <button id="global-undo" class="text-zinc-400 hover:text-white px-2 py-1 text-xs font-bold uppercase transition-colors flex-shrink-0">Undo</button>
+        <button id="global-clear" class="text-red-400 hover:text-red-300 px-2 py-1 text-xs font-bold uppercase transition-colors flex-shrink-0">Clear</button>
+        <div class="w-px h-6 bg-zinc-700"></div>
+        <button id="global-exit" class="bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded-lg text-xs font-bold uppercase transition-all flex-shrink-0">Done</button>
     </div>
 
     <!-- Bottom Dock -->
@@ -253,43 +273,13 @@
         </div>
     </div>
 
-    <!-- Empty State -->
+    <!-- Empty State Notification -->
     <div id="empty-state" class="absolute inset-0 flex items-center justify-center pointer-events-none z-0 transition-opacity duration-300">
         <div class="text-center bg-black/20 backdrop-blur-md p-10 rounded-[2.5rem] border border-white/20 shadow-2xl">
             <h1 class="text-4xl font-black text-white drop-shadow-md mb-3 tracking-tight">Classroom Board</h1>
             <p class="text-sm font-semibold text-white/80">Select a tool from the dock below to get started.</p>
         </div>
     </div>
-
-    <style>
-        .dock-btn {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            padding: 0.5rem;
-            border-radius: 1.5rem;
-            transition: all 0.2s;
-            min-width: 72px;
-        }
-        .dock-btn:active { transform: scale(0.95); }
-        .dock-btn .icon-wrap {
-            padding: 0.75rem;
-            border-radius: 1.2rem;
-            margin-bottom: 0.35rem;
-            transition: transform 0.3s;
-        }
-        .dock-btn:hover .icon-wrap { transform: translateY(-4px) scale(1.05); }
-        .dock-btn span {
-            font-size: 0.65rem;
-            font-weight: 800;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            color: #9ca3af;
-            transition: color 0.2s;
-        }
-        .dock-btn:hover span { color: #ffffff; }
-    </style>
 
     <script>
         // ==========================================
@@ -360,7 +350,7 @@
         }
 
         // ==========================================
-        // URL ENCODING & SAVING
+        // URL ENCODING & SAVING (FIXED: Duplicates and Serialization bug)
         // ==========================================
         function loadStateFromURL() {
             const hash = window.location.hash.substring(1);
@@ -377,6 +367,8 @@
                     redrawGlobal();
                 }
                 if (saved.widgets && Array.isArray(saved.widgets)) {
+                    State.widgets = []; // Clear array reference
+                    workspace.innerHTML = ''; // Wipe DOM
                     saved.widgets.forEach(w => addWidgetToDOM(w, true));
                 }
             } catch (e) { console.error("URL Load failed", e); }
@@ -481,6 +473,7 @@
                 }
             });
             document.querySelectorAll('.widget-wrapper').forEach(w => {
+                // Keep classes but update template styles cleanly
                 w.className = `widget-wrapper pointer-events-auto absolute rounded-[1.5rem] flex flex-col overflow-hidden transition-shadow duration-300 theme-${theme} widget-anim`;
             });
         }
@@ -499,14 +492,14 @@
             }
 
             const defaults = {
-                clock: { w: 300, h: 220 },
+                clock: { w: 320, h: 220 },
                 timer: { w: 320, h: 320 },
-                stopwatch: { w: 310, h: 250 },
+                stopwatch: { w: 320, h: 250 },
                 timetable: { w: 420, h: 480 },
                 symbols: { w: 320, h: 340 },
-                text: { w: 400, h: 300 }
+                text: { w: 400, h: 320 }
             };
-            const d = defaults[type] || { w: 300, h: 300 };
+            const d = defaults[type] || { w: 320, h: 320 };
             const widget = {
                 id: generateId(),
                 type: type,
@@ -520,10 +513,16 @@
         }
 
         // ==========================================
-        // WIDGET DOM MANAGEMENT
+        // WIDGET DOM MANAGEMENT & RESIZING
         // ==========================================
         function addWidgetToDOM(widget, isLoad) {
-            if (!isLoad) State.widgets.push(widget);
+            if (!isLoad) {
+                State.widgets.push(widget);
+            } else {
+                if (!State.widgets.some(w => w.id === widget.id)) {
+                    State.widgets.push(widget);
+                }
+            }
             
             const el = document.createElement('div');
             el.id = `widget-${widget.id}`;
@@ -537,17 +536,22 @@
             const header = document.createElement('div');
             header.className = "drag-handle h-10 flex flex-shrink-0 items-center justify-between px-4 cursor-grab active:cursor-grabbing border-b border-black/[0.05] bg-black/[0.03] hover:bg-black/[0.06] transition-colors select-none";
             header.innerHTML = `
-                <div class="flex items-center space-x-2 opacity-50">
+                <div class="flex items-center space-x-2 opacity-50 pointer-events-none">
                     <i data-lucide="grip-horizontal" class="w-4 h-4"></i>
                     <span class="text-[10px] font-black uppercase tracking-widest">${widget.type}</span>
                 </div>
-                <button class="close-btn p-1.5 hover:bg-red-500 hover:text-white rounded-lg opacity-60 hover:opacity-100 transition-all">
-                    <i data-lucide="x" class="w-3 h-3"></i>
-                </button>
+                <div class="flex items-center space-x-1 z-10">
+                    <button class="minimize-btn p-1 hover:bg-black/10 rounded opacity-60 hover:opacity-100 transition-all" title="Collapse Window">
+                        <i data-lucide="minus" class="w-3.5 h-3.5"></i>
+                    </button>
+                    <button class="close-btn p-1.5 hover:bg-red-500 hover:text-white rounded-lg opacity-60 hover:opacity-100 transition-all">
+                        <i data-lucide="x" class="w-3 h-3"></i>
+                    </button>
+                </div>
             `;
 
             const content = document.createElement('div');
-            content.className = "p-5 flex-grow flex flex-col overflow-hidden relative";
+            content.className = "widget-content p-5 flex-grow flex flex-col overflow-hidden relative";
             
             const cleanupFn = renderWidgetContent(widget, content);
 
@@ -562,6 +566,34 @@
             
             lucide.createIcons({ root: el });
             checkEmptyState();
+
+            // Set up state collapse parameters
+            if (widget.data.collapsed) {
+                content.style.display = 'none';
+                resizer.style.display = 'none';
+                el.style.height = '40px';
+                header.querySelector('.minimize-btn').innerHTML = `<i data-lucide="square" class="w-3.5 h-3.5"></i>`;
+                lucide.createIcons({ root: header });
+            }
+
+            // Collapse Button Handler
+            header.querySelector('.minimize-btn').onclick = (e) => {
+                e.stopPropagation();
+                widget.data.collapsed = !widget.data.collapsed;
+                if (widget.data.collapsed) {
+                    content.style.display = 'none';
+                    resizer.style.display = 'none';
+                    el.style.height = '40px';
+                    header.querySelector('.minimize-btn').innerHTML = `<i data-lucide="square" class="w-3.5 h-3.5"></i>`;
+                } else {
+                    content.style.display = 'flex';
+                    resizer.style.display = 'flex';
+                    el.style.height = `${widget.h}px`;
+                    header.querySelector('.minimize-btn').innerHTML = `<i data-lucide="minus" class="w-3.5 h-3.5"></i>`;
+                    if (widget.onResize) widget.onResize();
+                }
+                lucide.createIcons({ root: header });
+            };
 
             el.addEventListener('mousedown', () => { el.style.zIndex = ++State.maxZ; });
             el.addEventListener('touchstart', () => { el.style.zIndex = ++State.maxZ; }, {passive:true});
@@ -578,7 +610,7 @@
             let dragStartX, dragStartY;
             
             header.addEventListener('pointerdown', (e) => {
-                if (e.target.closest('.close-btn')) return;
+                if (e.target.closest('.close-btn') || e.target.closest('.minimize-btn')) return;
                 isDragging = true;
                 const rect = el.getBoundingClientRect();
                 dragStartX = e.clientX - rect.left;
@@ -612,7 +644,7 @@
                 } else if (isResizing) {
                     e.preventDefault();
                     widget.w = Math.max(250, startW + (e.clientX - resizeStartX));
-                    widget.h = Math.max(200, startH + (e.clientY - resizeStartY));
+                    widget.h = Math.max(160, startH + (e.clientY - resizeStartY));
                     el.style.width = `${widget.w}px`;
                     el.style.height = `${widget.h}px`;
                     if(widget.onResize) widget.onResize(); 
@@ -636,6 +668,9 @@
                 document.removeEventListener('pointermove', onPointerMove);
                 document.removeEventListener('pointerup', onPointerUp);
             };
+
+            // Call initial scale to resize content on construction
+            setTimeout(() => { if (widget.onResize) widget.onResize(); }, 50);
         }
 
         // ==========================================
@@ -652,19 +687,19 @@
             }
         }
 
-        // --- 1. CLOCK ---
+        // --- 1. CLOCK (WITH RESIZING AUTO-SCALING) ---
         function renderClock(widget, container) {
             widget.data.isDigital = widget.data.isDigital !== false;
             
             container.innerHTML = `
                 <div class="flex flex-col items-center justify-center h-full w-full relative">
                     <div id="digital-view-${widget.id}" class="text-center w-full ${!widget.data.isDigital ? 'hidden' : ''}">
-                        <div class="time-display text-5xl font-black tracking-tighter"></div>
-                        <div class="date-display text-sm font-bold uppercase tracking-wider text-indigo-500 mt-2"></div>
+                        <div class="time-display text-5xl font-black tracking-tighter transition-all"></div>
+                        <div class="date-display text-sm font-bold uppercase tracking-wider text-indigo-500 mt-2 transition-all"></div>
                     </div>
                     <canvas id="analog-view-${widget.id}" width="160" height="160" class="${widget.data.isDigital ? 'hidden' : ''}"></canvas>
                     
-                    <button id="toggle-${widget.id}" class="widget-controls mt-auto px-3 py-1.5 text-[10px] font-black uppercase rounded-lg hover:bg-black/5 opacity-50 hover:opacity-100 transition-all">
+                    <button id="toggle-${widget.id}" class="widget-controls mt-auto px-3 py-1.5 text-[10px] font-black uppercase rounded-lg hover:bg-black/5 opacity-50 hover:opacity-100 transition-all flex-shrink-0">
                         Switch Mode
                     </button>
                 </div>
@@ -678,15 +713,15 @@
             const ctx = analogView.getContext('2d');
 
             function drawAnalog(time) {
-                const radius = 80;
-                ctx.clearRect(0, 0, 160, 160);
+                const radius = analogView.width / 2;
+                ctx.clearRect(0, 0, analogView.width, analogView.height);
                 ctx.save();
                 ctx.translate(radius, radius);
                 
                 ctx.beginPath();
                 ctx.arc(0, 0, radius - 6, 0, 2 * Math.PI);
                 ctx.strokeStyle = '#4f46e5';
-                ctx.lineWidth = 4;
+                ctx.lineWidth = Math.max(2, radius * 0.05);
                 ctx.stroke();
 
                 const hr = time.getHours();
@@ -705,9 +740,9 @@
                     ctx.rotate(-pos);
                 };
 
-                drawHand((hr % 12 * Math.PI / 6) + (min * Math.PI / 360), radius * 0.5, 4, 'currentColor');
-                drawHand((min * Math.PI / 30) + (sec * Math.PI / 1800), radius * 0.7, 3, 'currentColor');
-                drawHand(sec * Math.PI / 30, radius * 0.85, 2, '#ef4444');
+                drawHand((hr % 12 * Math.PI / 6) + (min * Math.PI / 360), radius * 0.5, Math.max(2, radius * 0.05), 'currentColor');
+                drawHand((min * Math.PI / 30) + (sec * Math.PI / 1800), radius * 0.7, Math.max(1.5, radius * 0.035), 'currentColor');
+                drawHand(sec * Math.PI / 30, radius * 0.82, Math.max(1, radius * 0.02), '#ef4444');
 
                 ctx.restore();
             }
@@ -718,6 +753,19 @@
                 dateDisp.innerText = now.toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' });
                 if (!widget.data.isDigital) drawAnalog(now);
             }
+
+            // Dynamic Font/Canvas scaling on container resize
+            widget.onResize = () => {
+                const minDim = Math.min(widget.w, widget.h);
+                const textScale = Math.max(16, minDim * 0.15);
+                timeDisp.style.fontSize = `${textScale}px`;
+                dateDisp.style.fontSize = `${Math.max(10, textScale * 0.3)}px`;
+
+                const canvasSize = Math.max(100, Math.min(widget.w - 40, widget.h - 80));
+                analogView.width = canvasSize;
+                analogView.height = canvasSize;
+                update();
+            };
 
             toggleBtn.onclick = () => {
                 widget.data.isDigital = !widget.data.isDigital;
@@ -736,7 +784,7 @@
             return () => clearInterval(interval); 
         }
 
-        // --- 2. TIMER ---
+        // --- 2. TIMER (WITH INPUT & GRAPHICAL SCALING) ---
         function renderTimer(widget, container) {
             let total = widget.data.total || 300;
             let left = widget.data.left !== undefined ? widget.data.left : 300;
@@ -745,25 +793,25 @@
             let alarmPlayed = false;
 
             container.innerHTML = `
-                <div class="flex flex-col items-center justify-between h-full select-none">
-                    <div class="relative flex items-center justify-center w-36 h-36">
+                <div class="flex flex-col items-center justify-between h-full w-full select-none">
+                    <div id="svg-wrap-${widget.id}" class="relative flex items-center justify-center" style="width: 144px; height: 144px;">
                         <svg class="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
                             <circle cx="50" cy="50" r="45" class="stroke-current opacity-10 fill-none" stroke-width="5"></circle>
                             <circle id="ring-${widget.id}" cx="50" cy="50" r="45" class="stroke-amber-500 fill-none transition-all duration-1000 ease-linear" stroke-width="5" stroke-dasharray="283" stroke-dashoffset="0"></circle>
                         </svg>
-                        <div id="time-container-${widget.id}" class="absolute text-4xl font-black font-mono tracking-tighter text-center flex items-center justify-center space-x-1">
+                        <div id="time-container-${widget.id}" class="absolute font-black font-mono tracking-tighter text-center flex items-center justify-center space-x-1" style="font-size: 2.25rem;">
                         </div>
                     </div>
                     
-                    <div class="widget-controls flex space-x-2 mt-4">
-                        <button class="quick-btn px-2.5 py-1 text-xs font-bold rounded-lg bg-black/5 hover:bg-black/10 transition-colors" data-add="30">+30s</button>
-                        <button class="quick-btn px-2.5 py-1 text-xs font-bold rounded-lg bg-black/5 hover:bg-black/10 transition-colors" data-add="60">+1m</button>
-                        <button class="quick-btn px-2.5 py-1 text-xs font-bold rounded-lg bg-black/5 hover:bg-black/10 transition-colors" data-add="300">+5m</button>
+                    <div class="widget-controls flex space-x-1.5 mt-2 flex-wrap justify-center gap-y-1">
+                        <button class="quick-btn px-2 py-0.5 text-[10px] font-bold rounded-lg bg-black/5 hover:bg-black/10 transition-colors" data-add="30">+30s</button>
+                        <button class="quick-btn px-2 py-0.5 text-[10px] font-bold rounded-lg bg-black/5 hover:bg-black/10 transition-colors" data-add="60">+1m</button>
+                        <button class="quick-btn px-2 py-0.5 text-[10px] font-bold rounded-lg bg-black/5 hover:bg-black/10 transition-colors" data-add="300">+5m</button>
                     </div>
 
-                    <div class="widget-controls flex space-x-3 mt-4">
-                        <button id="play-${widget.id}" class="w-24 py-2.5 rounded-full text-white font-bold text-sm shadow-md transition-all active:scale-95 bg-green-500 hover:bg-green-600">Start</button>
-                        <button id="reset-${widget.id}" class="p-2.5 rounded-full bg-black/5 hover:bg-black/10 transition-all active:scale-95"><i data-lucide="rotate-ccw" class="w-4 h-4"></i></button>
+                    <div class="widget-controls flex space-x-3 mt-2 flex-shrink-0">
+                        <button id="play-${widget.id}" class="w-24 py-1.5 rounded-full text-white font-bold text-xs shadow-md transition-all active:scale-95 bg-green-500 hover:bg-green-600">Start</button>
+                        <button id="reset-${widget.id}" class="p-1.5 rounded-full bg-black/5 hover:bg-black/10 transition-all active:scale-95"><i data-lucide="rotate-ccw" class="w-4 h-4"></i></button>
                     </div>
                 </div>
             `;
@@ -772,6 +820,7 @@
             const timeContainer = container.querySelector(`#time-container-${widget.id}`);
             const playBtn = container.querySelector(`#play-${widget.id}`);
             const resetBtn = container.querySelector(`#reset-${widget.id}`);
+            const svgWrap = container.querySelector(`#svg-wrap-${widget.id}`);
 
             function updateUI() {
                 if (left < 0) left = 0;
@@ -790,9 +839,9 @@
                     timeContainer.innerHTML = `<span>${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}</span>`;
                 } else {
                     timeContainer.innerHTML = `
-                        <input type="number" id="inp-timer-m-${widget.id}" min="0" max="999" class="w-12 bg-black/5 rounded-lg text-center font-black focus:bg-amber-500/10 focus:ring-1 focus:ring-amber-400" value="${String(mins).padStart(2, '0')}">
+                        <input type="number" id="inp-timer-m-${widget.id}" min="0" max="999" class="bg-black/5 rounded-lg text-center font-black focus:bg-amber-500/10 focus:ring-1 focus:ring-amber-400" value="${String(mins).padStart(2, '0')}" style="width: 1.25em;">
                         <span>:</span>
-                        <input type="number" id="inp-timer-s-${widget.id}" min="0" max="59" class="w-10 bg-black/5 rounded-lg text-center font-black focus:bg-amber-500/10 focus:ring-1 focus:ring-amber-400" value="${String(secs).padStart(2, '0')}">
+                        <input type="number" id="inp-timer-s-${widget.id}" min="0" max="59" class="bg-black/5 rounded-lg text-center font-black focus:bg-amber-500/10 focus:ring-1 focus:ring-amber-400" value="${String(secs).padStart(2, '0')}" style="width: 1.1em;">
                     `;
 
                     const inpM = timeContainer.querySelector(`#inp-timer-m-${widget.id}`);
@@ -815,12 +864,27 @@
                 }
             }
 
+            // Multi-dimension responsive resizing scaling calculations
+            widget.onResize = () => {
+                const boxDim = Math.max(90, Math.min(widget.w - 50, widget.h - 110));
+                svgWrap.style.width = `${boxDim}px`;
+                svgWrap.style.height = `${boxDim}px`;
+
+                const fontSizeVal = boxDim * 0.22;
+                timeContainer.style.fontSize = `${fontSizeVal}px`;
+
+                const inputs = timeContainer.querySelectorAll('input');
+                inputs.forEach(inp => {
+                    inp.style.fontSize = `${fontSizeVal}px`;
+                });
+            };
+
             function tick() {
                 if (left <= 0) {
                     clearInterval(interval);
                     isRunning = false;
                     playBtn.innerText = "Start";
-                    playBtn.className = "w-24 py-2.5 rounded-full text-white font-bold text-sm shadow-md transition-all active:scale-95 bg-green-500 hover:bg-green-600";
+                    playBtn.className = "w-24 py-1.5 rounded-full text-white font-bold text-xs shadow-md transition-all active:scale-95 bg-green-500 hover:bg-green-600";
                     if (!alarmPlayed) { playBuzzer(); alarmPlayed = true; }
                     updateUI();
                     return;
@@ -834,7 +898,7 @@
                     clearInterval(interval);
                     isRunning = false;
                     playBtn.innerText = "Start";
-                    playBtn.className = "w-24 py-2.5 rounded-full text-white font-bold text-sm shadow-md transition-all active:scale-95 bg-green-500 hover:bg-green-600";
+                    playBtn.className = "w-24 py-1.5 rounded-full text-white font-bold text-xs shadow-md transition-all active:scale-95 bg-green-500 hover:bg-green-600";
                     updateUI();
                 } else {
                     const inpM = timeContainer.querySelector(`#inp-timer-m-${widget.id}`);
@@ -851,7 +915,7 @@
                         isRunning = true;
                         alarmPlayed = false;
                         playBtn.innerText = "Pause";
-                        playBtn.className = "w-24 py-2.5 rounded-full text-white font-bold text-sm shadow-md transition-all active:scale-95 bg-amber-500 hover:bg-amber-600";
+                        playBtn.className = "w-24 py-1.5 rounded-full text-white font-bold text-xs shadow-md transition-all active:scale-95 bg-amber-500 hover:bg-amber-600";
                         updateUI();
                     }
                 }
@@ -863,7 +927,7 @@
                 left = total;
                 alarmPlayed = false;
                 playBtn.innerText = "Start";
-                playBtn.className = "w-24 py-2.5 rounded-full text-white font-bold text-sm shadow-md transition-all active:scale-95 bg-green-500 hover:bg-green-600";
+                playBtn.className = "w-24 py-1.5 rounded-full text-white font-bold text-xs shadow-md transition-all active:scale-95 bg-green-500 hover:bg-green-600";
                 updateUI();
             };
 
@@ -880,7 +944,7 @@
             return () => clearInterval(interval);
         }
 
-        // --- 3. STOPWATCH ---
+        // --- 3. STOPWATCH (WITH COMPACT AUTO-SCALING CONTROLS) ---
         function renderStopwatch(widget, container) {
             let ms = widget.data.ms || 0;
             let isRunning = false;
@@ -888,17 +952,17 @@
             let laps = widget.data.laps || [];
 
             container.innerHTML = `
-                <div class="flex flex-col h-full select-none justify-between">
-                    <div class="text-center py-1 relative flex flex-col items-center">
-                        <div id="sw-interactive-${widget.id}" class="flex items-center justify-center space-x-1 text-3xl font-mono font-black tracking-tight text-purple-600 w-full">
+                <div class="flex flex-col h-full w-full select-none justify-between">
+                    <div class="text-center py-1 relative flex flex-col items-center flex-shrink-0">
+                        <div id="sw-interactive-${widget.id}" class="flex items-center justify-center space-x-1 font-mono font-black tracking-tight text-purple-600 w-full" style="font-size: 1.85rem;">
                         </div>
-                        <p id="edit-hint-${widget.id}" class="text-[8px] font-bold tracking-widest text-zinc-400 uppercase mt-1">Click to edit starting time</p>
+                        <p id="edit-hint-${widget.id}" class="text-[8px] font-bold tracking-widest text-zinc-400 uppercase mt-0.5">Click to edit starting time</p>
                     </div>
-                    <div id="laps-${widget.id}" class="flex-grow my-1.5 overflow-y-auto space-y-1 pr-1 max-h-[70px] text-xs"></div>
-                    <div class="widget-controls flex space-x-2 mt-auto">
-                        <button id="play-${widget.id}" class="flex-grow py-2.5 rounded-xl font-bold text-white transition-all active:scale-95 shadow-md bg-purple-600 hover:bg-purple-700 text-sm">Start</button>
-                        <button id="lap-${widget.id}" class="px-3 py-2.5 rounded-xl bg-purple-500/20 text-purple-600 hover:bg-purple-500/30 font-bold transition-all active:scale-95 text-sm hidden">Lap</button>
-                        <button id="reset-${widget.id}" class="p-2.5 rounded-xl bg-black/5 hover:bg-black/10 transition-all active:scale-95"><i data-lucide="rotate-ccw" class="w-4 h-4"></i></button>
+                    <div id="laps-${widget.id}" class="flex-grow my-1 overflow-y-auto space-y-1 pr-1 text-xs"></div>
+                    <div class="widget-controls flex space-x-2 mt-auto flex-shrink-0">
+                        <button id="play-${widget.id}" class="flex-grow py-2 rounded-xl font-bold text-white transition-all active:scale-95 shadow-md bg-purple-600 hover:bg-purple-700 text-xs">Start</button>
+                        <button id="lap-${widget.id}" class="px-3 py-2 rounded-xl bg-purple-500/20 text-purple-600 hover:bg-purple-500/30 font-bold transition-all active:scale-95 text-xs hidden">Lap</button>
+                        <button id="reset-${widget.id}" class="p-2 rounded-xl bg-black/5 hover:bg-black/10 transition-all active:scale-95"><i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i></button>
                     </div>
                 </div>
             `;
@@ -931,11 +995,11 @@
                 } else {
                     hint.style.visibility = "visible";
                     interactiveContainer.innerHTML = `
-                        <input type="number" id="inp-m-${widget.id}" min="0" max="99" class="w-10 bg-black/5 rounded text-center font-black focus:bg-purple-500/10 focus:ring-1 focus:ring-purple-400" value="${String(m).padStart(2, '0')}">
+                        <input type="number" id="inp-m-${widget.id}" min="0" max="99" class="bg-black/5 rounded text-center font-black focus:bg-purple-500/10 focus:ring-1 focus:ring-purple-400" value="${String(m).padStart(2, '0')}" style="width: 1.25em;">
                         <span>:</span>
-                        <input type="number" id="inp-s-${widget.id}" min="0" max="59" class="w-10 bg-black/5 rounded text-center font-black focus:bg-purple-500/10 focus:ring-1 focus:ring-purple-400" value="${String(s).padStart(2, '0')}">
+                        <input type="number" id="inp-s-${widget.id}" min="0" max="59" class="bg-black/5 rounded text-center font-black focus:bg-purple-500/10 focus:ring-1 focus:ring-purple-400" value="${String(s).padStart(2, '0')}" style="width: 1.1em;">
                         <span>.</span>
-                        <input type="number" id="inp-c-${widget.id}" min="0" max="99" class="w-10 bg-black/5 rounded text-center font-black focus:bg-purple-500/10 focus:ring-1 focus:ring-purple-400" value="${String(centi).padStart(2, '0')}">
+                        <input type="number" id="inp-c-${widget.id}" min="0" max="99" class="bg-black/5 rounded text-center font-black focus:bg-purple-500/10 focus:ring-1 focus:ring-purple-400" value="${String(centi).padStart(2, '0')}" style="width: 1.1em;">
                     `;
 
                     const inputs = ['m', 's', 'c'].map(char => interactiveContainer.querySelector(`#inp-${char}-${widget.id}`));
@@ -955,6 +1019,16 @@
                 widget.data.ms = ms;
             }
 
+            // Responsive widget sizing rules
+            widget.onResize = () => {
+                const textScale = Math.max(16, Math.min(widget.w * 0.1, widget.h * 0.16));
+                interactiveContainer.style.fontSize = `${textScale}px`;
+                const inputs = interactiveContainer.querySelectorAll('input');
+                inputs.forEach(inp => {
+                    inp.style.fontSize = `${textScale}px`;
+                });
+            };
+
             function tick() { 
                 ms++; 
                 widget.data.ms = ms;
@@ -966,7 +1040,7 @@
                     clearInterval(interval);
                     isRunning = false;
                     playBtn.innerText = "Start";
-                    playBtn.className = "flex-grow py-2.5 rounded-xl font-bold text-white transition-all active:scale-95 shadow-md bg-purple-600 hover:bg-purple-700 text-sm";
+                    playBtn.className = "flex-grow py-2 rounded-xl font-bold text-white transition-all active:scale-95 shadow-md bg-purple-600 hover:bg-purple-700 text-xs";
                     lapBtn.classList.add('hidden');
                     renderDisplay();
                 } else {
@@ -974,7 +1048,7 @@
                     interval = setInterval(tick, 10);
                     isRunning = true;
                     playBtn.innerText = "Pause";
-                    playBtn.className = "flex-grow py-2.5 rounded-xl font-bold text-white transition-all active:scale-95 shadow-md bg-amber-500 hover:bg-amber-600 text-sm";
+                    playBtn.className = "flex-grow py-2 rounded-xl font-bold text-white transition-all active:scale-95 shadow-md bg-amber-500 hover:bg-amber-600 text-xs";
                     lapBtn.classList.remove('hidden');
                     renderDisplay();
                 }
@@ -994,7 +1068,7 @@
                 widget.data.ms = 0;
                 widget.data.laps = [];
                 playBtn.innerText = "Start";
-                playBtn.className = "flex-grow py-2.5 rounded-xl font-bold text-white transition-all active:scale-95 shadow-md bg-purple-600 hover:bg-purple-700 text-sm";
+                playBtn.className = "flex-grow py-2 rounded-xl font-bold text-white transition-all active:scale-95 shadow-md bg-purple-600 hover:bg-purple-700 text-xs";
                 lapBtn.classList.add('hidden');
                 renderDisplay();
                 renderLaps();
@@ -1002,7 +1076,7 @@
 
             function renderLaps() {
                 lapsContainer.innerHTML = laps.map((l, i) => `
-                    <div class="flex justify-between items-center text-[11px] border-b border-black/5 py-1">
+                    <div class="flex justify-between items-center text-[10px] border-b border-black/5 py-0.5">
                         <span class="font-bold opacity-50">Lap ${laps.length - i}</span>
                         <span class="font-mono font-bold text-purple-500">${format(l)}</span>
                     </div>
@@ -1014,9 +1088,8 @@
             return () => clearInterval(interval);
         }
 
-        // --- 4. TIMETABLE / SCHEDULE (DYNAMIC MASTER AGENDA SHIFTING ENGINE) ---
+        // --- 4. TIMETABLE / SCHEDULE (WITH ROW & TEXT AUTO-SCALING) ---
         function renderTimetable(widget, container) {
-            // Master list of daily Period times (Teacher template start times)
             let periods = widget.data.periods || [
                 { id: 'p1', name: 'Period 1', time: '08:30' },
                 { id: 'p2', name: 'Period 2', time: '09:45' },
@@ -1024,7 +1097,6 @@
                 { id: 'p4', name: 'Period 4', time: '13:15' }
             ];
 
-            // Set of agenda activities occurring WITHIN each class period, defined by relative offsets
             let agenda = widget.data.agenda || [
                 { id: 'a1', offset: 0, task: 'Bell Ringer / Warm-up', color: 'border-indigo-500 bg-indigo-500/5 text-indigo-700' },
                 { id: 'a2', offset: 10, task: 'Class Concept Presentation', color: 'border-amber-500 bg-amber-500/5 text-amber-700' },
@@ -1040,28 +1112,27 @@
                 'border-sky-500 bg-sky-500/5 text-sky-700'
             ];
 
-            // Toggles between showing Live presentation (View) or adjusting period template guidelines (Edit)
             let isEditMode = widget.data.isEditMode !== false;
 
             function renderLayout() {
                 container.innerHTML = `
                     <div class="flex flex-col h-full w-full justify-between">
                         <!-- Navigation tabs -->
-                        <div class="flex items-center justify-between border-b border-black/5 pb-2 mb-2">
-                            <span class="text-xs font-black uppercase tracking-widest text-indigo-600">Daily Class Agenda</span>
+                        <div class="flex items-center justify-between border-b border-black/5 pb-1 mb-1 flex-shrink-0">
+                            <span id="tt-title-${widget.id}" class="text-[9px] font-black uppercase tracking-widest text-indigo-600">Daily Class Agenda</span>
                             <div class="flex space-x-1">
-                                <button id="btn-tab-live-${widget.id}" class="px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase transition-all ${!isEditMode ? 'bg-indigo-600 text-white shadow-sm' : 'hover:bg-black/5'}" title="Switch to live Presentation">Live Present</button>
-                                <button id="btn-tab-edit-${widget.id}" class="px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase transition-all ${isEditMode ? 'bg-indigo-600 text-white shadow-sm' : 'hover:bg-black/5'}" title="Configure times & template items">Settings</button>
+                                <button id="btn-tab-live-${widget.id}" class="px-2 py-0.5 rounded-lg text-[8px] font-bold uppercase transition-all ${!isEditMode ? 'bg-indigo-600 text-white shadow-sm' : 'hover:bg-black/5'}" title="Switch to live Presentation">Live Present</button>
+                                <button id="btn-tab-edit-${widget.id}" class="px-2 py-0.5 rounded-lg text-[8px] font-bold uppercase transition-all ${isEditMode ? 'bg-indigo-600 text-white shadow-sm' : 'hover:bg-black/5'}" title="Configure times & template items">Settings</button>
                             </div>
                         </div>
 
                         <!-- Main Screen Content Area -->
-                        <div id="timetable-content-${widget.id}" class="flex-grow overflow-y-auto pr-1 mb-2"></div>
+                        <div id="timetable-content-${widget.id}" class="flex-grow overflow-y-auto pr-1 mb-1"></div>
                     </div>
                 `;
 
-                container.querySelector(`#btn-tab-live-${widget.id}`).onclick = () => { isEditMode = false; widget.data.isEditMode = false; renderMain(); };
-                container.querySelector(`#btn-tab-edit-${widget.id}`).onclick = () => { isEditMode = true; widget.data.isEditMode = true; renderMain(); };
+                container.querySelector(`#btn-tab-live-${widget.id}`).onclick = () => { isEditMode = false; widget.data.isEditMode = false; renderMain(); if (widget.onResize) widget.onResize(); };
+                container.querySelector(`#btn-tab-edit-${widget.id}`).onclick = () => { isEditMode = true; widget.data.isEditMode = true; renderMain(); if (widget.onResize) widget.onResize(); };
 
                 renderMain();
             }
@@ -1070,73 +1141,68 @@
                 const subContent = container.querySelector(`#timetable-content-${widget.id}`);
                 
                 if (isEditMode) {
-                    // CONFIGURATION VIEW
                     subContent.innerHTML = `
-                        <div class="space-y-4">
-                            <!-- Class Periods setup -->
+                        <div class="space-y-3">
                             <div>
-                                <h4 class="text-[10px] font-black uppercase tracking-wider text-indigo-500 mb-2 flex justify-between items-center">
+                                <h4 class="text-[9px] font-black uppercase tracking-wider text-indigo-500 mb-1 flex justify-between items-center">
                                     <span>Class Period Start Times</span>
-                                    <button id="add-period-${widget.id}" class="p-1 hover:bg-black/5 rounded text-indigo-600"><i data-lucide="plus" class="w-3.5 h-3.5"></i></button>
+                                    <button id="add-period-${widget.id}" class="p-0.5 hover:bg-black/5 rounded text-indigo-600"><i data-lucide="plus" class="w-3 h-3"></i></button>
                                 </h4>
-                                <div id="period-list-${widget.id}" class="space-y-1.5 max-h-[140px] overflow-y-auto pr-1"></div>
+                                <div id="period-list-${widget.id}" class="space-y-1 max-h-[100px] overflow-y-auto pr-1"></div>
                             </div>
 
-                            <!-- Class Agenda setup -->
                             <div>
-                                <h4 class="text-[10px] font-black uppercase tracking-wider text-indigo-500 mb-2 flex justify-between items-center">
+                                <h4 class="text-[9px] font-black uppercase tracking-wider text-indigo-500 mb-1 flex justify-between items-center">
                                     <span>Template Period Agenda</span>
-                                    <button id="add-agenda-${widget.id}" class="p-1 hover:bg-black/5 rounded text-indigo-600"><i data-lucide="plus" class="w-3.5 h-3.5"></i></button>
+                                    <button id="add-agenda-${widget.id}" class="p-0.5 hover:bg-black/5 rounded text-indigo-600"><i data-lucide="plus" class="w-3 h-3"></i></button>
                                 </h4>
-                                <div id="agenda-list-${widget.id}" class="space-y-1.5 max-h-[160px] overflow-y-auto pr-1"></div>
+                                <div id="agenda-list-${widget.id}" class="space-y-1 max-h-[110px] overflow-y-auto pr-1"></div>
                             </div>
                         </div>
                     `;
 
-                    // Populating Periods template inputs
                     const periodsListContainer = subContent.querySelector(`#period-list-${widget.id}`);
                     periods.forEach((p, idx) => {
                         const row = document.createElement('div');
-                        row.className = "flex items-center space-x-2 bg-black/[0.02] p-1.5 rounded-lg";
+                        row.className = "flex items-center space-x-1.5 bg-black/[0.02] p-1 rounded-lg text-xs font-semibold";
                         row.innerHTML = `
-                            <input type="text" class="period-name bg-transparent font-bold text-xs w-24 border-b border-transparent focus:border-indigo-400" value="${p.name}">
-                            <input type="text" class="period-time bg-transparent text-xs w-16 border-b border-transparent focus:border-indigo-400" placeholder="HH:MM" value="${p.time}">
-                            <button class="del-period p-1 hover:text-red-500 transition-colors" data-idx="${idx}"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
+                            <input type="text" class="period-name bg-transparent font-bold w-20 border-b border-transparent focus:border-indigo-400" value="${p.name}">
+                            <input type="text" class="period-time bg-transparent w-12 border-b border-transparent focus:border-indigo-400 text-center" placeholder="HH:MM" value="${p.time}">
+                            <button class="del-period p-0.5 hover:text-red-500 transition-colors" data-idx="${idx}"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
                         `;
 
                         row.querySelector('.period-name').onchange = (e) => { periods[idx].name = e.target.value; widget.data.periods = periods; };
                         row.querySelector('.period-time').onchange = (e) => { periods[idx].time = e.target.value; widget.data.periods = periods; };
-                        row.querySelector('.del-period').onclick = () => { periods.splice(idx, 1); widget.data.periods = periods; renderMain(); };
+                        row.querySelector('.del-period').onclick = () => { periods.splice(idx, 1); widget.data.periods = periods; renderMain(); if (widget.onResize) widget.onResize(); };
                         periodsListContainer.appendChild(row);
                     });
 
-                    // Populating Agenda Items template inputs
                     const agendaListContainer = subContent.querySelector(`#agenda-list-${widget.id}`);
                     agenda.forEach((a, idx) => {
                         const row = document.createElement('div');
-                        row.className = "flex items-center space-x-2 bg-black/[0.02] p-1.5 rounded-lg border-l-4 " + a.color.split(' ')[0];
+                        row.className = "flex items-center space-x-1.5 bg-black/[0.02] p-1 rounded-lg border-l-4 " + a.color.split(' ')[0] + " text-xs font-semibold";
                         row.innerHTML = `
-                            <div class="flex items-center space-x-1 text-xs">
-                                <span class="opacity-40 font-black text-[10px]">+</span>
-                                <input type="number" class="agenda-offset bg-transparent font-black w-8 text-center" min="0" max="180" value="${a.offset}">
-                                <span class="opacity-40">m</span>
+                            <div class="flex items-center space-x-0.5">
+                                <span class="opacity-40 font-black text-[9px]">+</span>
+                                <input type="number" class="agenda-offset bg-transparent font-black w-6 text-center" min="0" max="180" value="${a.offset}">
+                                <span class="opacity-40 text-[10px]">m</span>
                             </div>
-                            <input type="text" class="agenda-task bg-transparent text-xs font-semibold flex-grow border-b border-transparent focus:border-indigo-400" value="${a.task}">
-                            <button class="del-agenda p-1 hover:text-red-500 transition-colors" data-idx="${idx}"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
+                            <input type="text" class="agenda-task bg-transparent flex-grow border-b border-transparent focus:border-indigo-400" value="${a.task}">
+                            <button class="del-agenda p-0.5 hover:text-red-500 transition-colors" data-idx="${idx}"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
                         `;
 
                         row.querySelector('.agenda-offset').onchange = (e) => { agenda[idx].offset = parseInt(e.target.value) || 0; widget.data.agenda = agenda; };
                         row.querySelector('.agenda-task').onchange = (e) => { agenda[idx].task = e.target.value; widget.data.agenda = agenda; };
-                        row.querySelector('.del-agenda').onclick = () => { agenda.splice(idx, 1); widget.data.agenda = agenda; renderMain(); };
+                        row.querySelector('.del-agenda').onclick = () => { agenda.splice(idx, 1); widget.data.agenda = agenda; renderMain(); if (widget.onResize) widget.onResize(); };
                         agendaListContainer.appendChild(row);
                     });
 
-                    // Setting Add operations
                     subContent.querySelector(`#add-period-${widget.id}`).onclick = () => {
                         const nextId = 'p-' + generateId();
                         periods.push({ id: nextId, name: 'Period ' + (periods.length + 1), time: '12:00' });
                         widget.data.periods = periods;
                         renderMain();
+                        if (widget.onResize) widget.onResize();
                     };
 
                     subContent.querySelector(`#add-agenda-${widget.id}`).onclick = () => {
@@ -1145,20 +1211,20 @@
                         agenda.push({ id: nextId, offset: nextOffset, task: 'New Activity', color: colors[agenda.length % colors.length] });
                         widget.data.agenda = agenda;
                         renderMain();
+                        if (widget.onResize) widget.onResize();
                     };
 
                     lucide.createIcons({ root: subContent });
 
                 } else {
-                    // PRESENTATION VIEW - Dynamically shifts and repeats relative offsets based on active Class start
                     subContent.innerHTML = `
-                        <div class="space-y-3">
-                            <div class="bg-indigo-600/5 border border-indigo-500/20 p-3 rounded-2xl flex flex-col items-center text-center">
-                                <div id="live-period-title-${widget.id}" class="text-xs font-black uppercase tracking-wider text-indigo-600">Checking Active Class...</div>
-                                <div id="live-status-desc-${widget.id}" class="text-sm font-semibold opacity-70 mt-1">Starting soon...</div>
+                        <div class="space-y-2">
+                            <div class="bg-indigo-600/5 border border-indigo-500/20 p-2 rounded-xl flex flex-col items-center text-center">
+                                <div id="live-period-title-${widget.id}" class="text-[9px] font-black uppercase tracking-wider text-indigo-600">Checking Active Class...</div>
+                                <div id="live-status-desc-${widget.id}" class="text-xs font-semibold opacity-70 mt-0.5">Starting soon...</div>
                             </div>
                             
-                            <div id="live-agenda-list-${widget.id}" class="space-y-2"></div>
+                            <div id="live-agenda-list-${widget.id}" class="space-y-1.5"></div>
                         </div>
                     `;
 
@@ -1166,7 +1232,6 @@
                 }
             }
 
-            // Calculations parsing active intervals & shifting agenda dynamically
             function updateLiveState() {
                 if (isEditMode) return;
                 
@@ -1178,7 +1243,6 @@
                 const now = new Date();
                 const currentMins = now.getHours() * 60 + now.getMinutes();
 
-                // Sort Class Period Start Times chronologically
                 const sortedPeriods = [...periods].map(p => {
                     const parts = p.time.split(':');
                     const hr = parseInt(parts[0]) || 0;
@@ -1186,13 +1250,11 @@
                     return { ...p, minutes: (hr * 60) + min };
                 }).sort((a, b) => a.minutes - b.minutes);
 
-                // Sort Lesson agenda chronologically by offset
                 const sortedAgenda = [...agenda].sort((a, b) => a.offset - b.offset);
 
                 let activePeriod = null;
                 let nextPeriod = null;
 
-                // Detect current Period
                 for (let i = 0; i < sortedPeriods.length; i++) {
                     const p = sortedPeriods[i];
                     if (currentMins >= p.minutes) {
@@ -1202,36 +1264,30 @@
                     }
                 }
 
-                // Default active duration window context: 60 mins unless bound by the next period starting
                 let periodDuration = 60;
                 if (activePeriod && nextPeriod) {
                     periodDuration = nextPeriod.minutes - activePeriod.minutes;
                 }
 
                 if (!activePeriod) {
-                    // Passing Period/Before school mode
                     titleEl.innerText = "No Active Period";
                     if (nextPeriod) {
                         const diff = nextPeriod.minutes - currentMins;
-                        titleEl.className = "text-xs font-black uppercase tracking-wider text-indigo-500";
                         descEl.innerHTML = `<span class="text-indigo-600 font-bold">${nextPeriod.name}</span> starts in <span class="text-indigo-600 font-bold">${diff} mins</span>`;
                     } else {
                         descEl.innerText = "School Hours Complete";
                     }
 
-                    // Render plain agenda guide
                     liveList.innerHTML = sortedAgenda.map(item => `
-                        <div class="flex justify-between items-center p-2.5 rounded-xl border border-black/5 opacity-50 text-xs font-bold bg-white/20">
+                        <div class="flex justify-between items-center p-2 rounded-xl border border-black/5 opacity-50 text-[10px] font-bold bg-white/20">
                             <span>+${item.offset}m: ${item.task}</span>
                         </div>
                     `).join('');
 
                 } else {
-                    // Active class found! Shifting offsets relative to Period starting baseline
                     const elapsed = currentMins - activePeriod.minutes;
                     titleEl.innerText = `${activePeriod.name} (Started ${activePeriod.time})`;
 
-                    // Locate currently running task
                     let activeAgendaIdx = -1;
                     for (let j = 0; j < sortedAgenda.length; j++) {
                         if (elapsed >= sortedAgenda[j].offset) {
@@ -1239,7 +1295,6 @@
                         }
                     }
 
-                    // Display countdown status
                     if (activeAgendaIdx !== -1) {
                         const activeItem = sortedAgenda[activeAgendaIdx];
                         const nextItem = sortedAgenda[activeAgendaIdx + 1];
@@ -1249,7 +1304,6 @@
                             itemRemaining = nextItem.offset - elapsed;
                             descEl.innerHTML = `<span class="font-bold text-indigo-600">${itemRemaining}m</span> left in <span class="font-bold text-indigo-600">${activeItem.task}</span>`;
                         } else {
-                            // final task ends when period finishes
                             itemRemaining = periodDuration - elapsed;
                             if (itemRemaining > 0) {
                                 descEl.innerHTML = `<span class="font-bold text-indigo-600">${itemRemaining}m</span> left until next Period transition`;
@@ -1261,7 +1315,6 @@
                         descEl.innerText = "Beginning class agenda...";
                     }
 
-                    // Populating shifted agenda
                     liveList.innerHTML = '';
                     sortedAgenda.forEach((item, idx) => {
                         const absoluteMins = activePeriod.minutes + item.offset;
@@ -1273,7 +1326,7 @@
                         const isPast = idx < activeAgendaIdx;
 
                         const row = document.createElement('div');
-                        row.className = `flex justify-between items-center p-2.5 rounded-xl border-l-4 ${item.color} transition-all shadow-sm ${
+                        row.className = `flex justify-between items-center p-2 rounded-xl border-l-4 ${item.color} transition-all shadow-sm ${
                             isActive ? 'ring-2 ring-indigo-500 scale-[1.01] opacity-100' : isPast ? 'opacity-30' : 'opacity-70'
                         }`;
 
@@ -1283,11 +1336,11 @@
 
                         row.innerHTML = `
                             <div class="flex items-center space-x-2">
-                                ${isActive ? '<span class="flex h-2 w-2 relative"><span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span><span class="relative inline-flex rounded-full h-2 w-2 bg-indigo-500"></span></span>' : ''}
-                                <span class="font-bold text-xs">${absoluteTimeString}</span>
-                                <span class="text-xs font-semibold">${item.task}</span>
+                                ${isActive ? '<span class="flex h-1.5 w-1.5 relative"><span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span><span class="relative inline-flex rounded-full h-1.5 w-1.5 bg-indigo-500"></span></span>' : ''}
+                                <span class="font-bold text-[10px]">${absoluteTimeString}</span>
+                                <span class="text-xs font-semibold truncate max-w-[150px]">${item.task}</span>
                             </div>
-                            <span class="text-[10px] opacity-40 font-black">+${item.offset}m</span>
+                            <span class="text-[9px] opacity-40 font-black">+${item.offset}m</span>
                         `;
 
                         liveList.appendChild(row);
@@ -1295,14 +1348,30 @@
                 }
             }
 
+            // Auto-scale Schedule widget items
+            widget.onResize = () => {
+                const textScale = Math.max(9, Math.min(widget.w * 0.03, widget.h * 0.05));
+                const titleHeader = container.querySelector(`#tt-title-${widget.id}`);
+                if (titleHeader) titleHeader.style.fontSize = `${textScale}px`;
+
+                const liveTitle = container.querySelector(`#live-period-title-${widget.id}`);
+                const liveDesc = container.querySelector(`#live-status-desc-${widget.id}`);
+                if (liveTitle) liveTitle.style.fontSize = `${textScale * 0.9}px`;
+                if (liveDesc) liveDesc.style.fontSize = `${textScale * 1.1}px`;
+
+                const rowsList = container.querySelectorAll(`#live-agenda-list-${widget.id} > div`);
+                rowsList.forEach(row => {
+                    const spans = row.querySelectorAll('span');
+                    if (spans[1]) spans[1].style.fontSize = `${textScale * 1.1}px`;
+                });
+            };
+
             renderLayout();
-            
-            // Constantly polls current minute boundaries in Present Mode
             const subTimer = setInterval(updateLiveState, 10000); 
             return () => clearInterval(subTimer);
         }
 
-        // --- 5. WORK SYMBOLS ---
+        // --- 5. WORK SYMBOLS (COLLAPSE & HIGH FOCUS) ---
         function renderSymbols(widget, container) {
             const symbols = [
                 { icon: 'volume-x', label: 'Silence', desc: 'No talking, absolute concentration.', color: 'text-red-500 bg-red-500/10 ring-red-400' },
@@ -1321,19 +1390,19 @@
                     const gridContainer = document.createElement('div');
                     gridContainer.className = "flex flex-col justify-between h-full select-none";
                     gridContainer.innerHTML = `
-                        <div class="grid grid-cols-2 gap-3" id="sym-grid-${widget.id}">
+                        <div class="grid grid-cols-2 gap-2" id="sym-grid-${widget.id}">
                             ${symbols.map((sym, i) => {
                                 const active = i === current;
                                 return `
-                                    <button class="sym-btn p-3 border rounded-2xl flex flex-col items-center justify-center text-center transition-all duration-300 ${active ? `${sym.color} ring-2 scale-105 shadow-md border-transparent` : 'border-black/10 opacity-60 hover:opacity-100 hover:bg-black/5'}" data-index="${i}">
-                                        <i data-lucide="${sym.icon}" class="w-8 h-8 mb-2"></i>
-                                        <div class="text-[10px] font-black uppercase tracking-wider">${sym.label}</div>
+                                    <button class="sym-btn p-2 border rounded-xl flex flex-col items-center justify-center text-center transition-all duration-300 ${active ? `${sym.color} ring-2 scale-105 shadow-md border-transparent` : 'border-black/10 opacity-60 hover:opacity-100 hover:bg-black/5'}" data-index="${i}">
+                                        <i data-lucide="${sym.icon}" class="w-6 h-6 mb-1"></i>
+                                        <div class="text-[9px] font-black uppercase tracking-wider">${sym.label}</div>
                                     </button>
                                 `;
                             }).join('')}
                         </div>
-                        <div class="mt-3 text-center bg-black/5 p-2 rounded-xl border border-dashed border-black/20">
-                            <p class="text-xs font-bold opacity-60">Choose standard classroom rules</p>
+                        <div class="mt-2 text-center bg-black/5 p-1.5 rounded-lg border border-dashed border-black/20">
+                            <p class="text-[10px] font-bold opacity-60">Choose standard classroom rules</p>
                         </div>
                     `;
 
@@ -1347,27 +1416,29 @@
                             widget.data.index = current;
                             widget.data.showSelectorGrid = showSelectorGrid;
                             render();
+                            if (widget.onResize) widget.onResize();
                         };
                     });
 
                 } else {
                     const sym = symbols[current];
                     const focusCard = document.createElement('button');
-                    focusCard.className = `w-full h-full flex flex-col items-center justify-center text-center p-6 border rounded-[1.5rem] transition-all duration-500 hover:scale-[1.02] active:scale-[0.98] cursor-pointer ${sym.color} border-transparent ring-2 ring-indigo-400 shadow-xl`;
+                    focusCard.className = `w-full h-full flex flex-col items-center justify-center text-center p-4 border rounded-[1.5rem] transition-all duration-500 hover:scale-[1.01] active:scale-[0.99] cursor-pointer ${sym.color} border-transparent ring-2 ring-indigo-400 shadow-xl`;
                     
                     focusCard.innerHTML = `
                         <div class="flex-grow flex flex-col items-center justify-center">
-                            <i data-lucide="${sym.icon}" class="w-20 h-20 mb-4 animate-bounce"></i>
-                            <h2 class="text-4xl font-black uppercase tracking-wider mb-2">${sym.label}</h2>
-                            <p class="text-sm font-semibold opacity-80 max-w-[240px] leading-relaxed mx-auto">${sym.desc}</p>
+                            <i id="sym-focus-icon-${widget.id}" data-lucide="${sym.icon}" class="w-16 h-16 mb-2 animate-bounce"></i>
+                            <h2 id="sym-focus-label-${widget.id}" class="text-3xl font-black uppercase tracking-wider mb-1">${sym.label}</h2>
+                            <p id="sym-focus-desc-${widget.id}" class="text-xs font-semibold opacity-80 max-w-[240px] leading-snug mx-auto">${sym.desc}</p>
                         </div>
-                        <span class="widget-controls text-[9px] font-bold uppercase tracking-widest text-indigo-600 bg-white/50 backdrop-blur px-3 py-1.5 rounded-lg mt-4 border border-indigo-200">Click to Change Symbol</span>
+                        <span class="widget-controls text-[8px] font-bold uppercase tracking-widest text-indigo-600 bg-white/50 backdrop-blur px-2.5 py-1 rounded-lg mt-2 border border-indigo-200">Click to Change Symbol</span>
                     `;
 
                     focusCard.onclick = () => {
                         showSelectorGrid = true; 
                         widget.data.showSelectorGrid = showSelectorGrid;
                         render();
+                        if (widget.onResize) widget.onResize();
                     };
 
                     container.appendChild(focusCard);
@@ -1375,35 +1446,73 @@
                 }
             }
 
+            // Auto-scale Expectation Symbol
+            widget.onResize = () => {
+                const scale = Math.min(widget.w / 320, widget.h / 340);
+                
+                const focusIcon = container.querySelector(`#sym-focus-icon-${widget.id}`);
+                const focusLabel = container.querySelector(`#sym-focus-label-${widget.id}`);
+                const focusDesc = container.querySelector(`#sym-focus-desc-${widget.id}`);
+                
+                if (focusIcon) {
+                    const iconSize = Math.max(36, 64 * scale);
+                    focusIcon.style.width = `${iconSize}px`;
+                    focusIcon.style.height = `${iconSize}px`;
+                }
+                if (focusLabel) focusLabel.style.fontSize = `${Math.max(16, 32 * scale)}px`;
+                if (focusDesc) focusDesc.style.fontSize = `${Math.max(10, 12 * scale)}px`;
+            };
+
             render();
             return null;
         }
 
-        // --- 6. TEXT WIDGET ---
+        // --- 6. TEXT WIDGET (WITH RICH STICKY STYLING OPTIONS) ---
         function renderText(widget, container) {
             let baseSize = widget.data.baseSize || 18;
             let align = widget.data.alignment || 'left';
+            let stickyColor = widget.data.stickyColor || '';
 
             container.innerHTML = `
                 <div class="flex flex-col h-full w-full justify-between">
-                    <div class="widget-controls flex items-center justify-between mb-3 border-b border-black/10 pb-2 text-[10px] font-bold uppercase tracking-wider opacity-60">
+                    <div class="widget-controls flex flex-wrap items-center justify-between mb-2 border-b border-black/10 pb-1 text-[9px] font-bold uppercase tracking-wider opacity-60 gap-y-1">
                         <div class="flex items-center space-x-2">
                             <span>Base Size:</span>
                             <input type="range" id="fs-${widget.id}" min="12" max="48" value="${baseSize}" class="w-16">
                         </div>
                         <div class="flex space-x-1" id="align-${widget.id}">
-                            <button data-align="left" class="px-1.5 py-1 rounded hover:bg-black/10 ${align==='left'?'bg-black/10':''}"><i data-lucide="align-left" class="w-3 h-3"></i></button>
-                            <button data-align="center" class="px-1.5 py-1 rounded hover:bg-black/10 ${align==='center'?'bg-black/10':''}"><i data-lucide="align-center" class="w-3 h-3"></i></button>
-                            <button data-align="right" class="px-1.5 py-1 rounded hover:bg-black/10 ${align==='right'?'bg-black/10':''}"><i data-lucide="align-right" class="w-3 h-3"></i></button>
+                            <button data-align="left" class="px-1 py-0.5 rounded hover:bg-black/10 ${align==='left'?'bg-black/10':''}"><i data-lucide="align-left" class="w-3 h-3"></i></button>
+                            <button data-align="center" class="px-1 py-0.5 rounded hover:bg-black/10 ${align==='center'?'bg-black/10':''}"><i data-lucide="align-center" class="w-3 h-3"></i></button>
+                            <button data-align="right" class="px-1 py-0.5 rounded hover:bg-black/10 ${align==='right'?'bg-black/10':''}"><i data-lucide="align-right" class="w-3 h-3"></i></button>
+                        </div>
+                        <!-- Sticky Pastel Colors -->
+                        <div class="flex space-x-1" id="sticky-palette-${widget.id}">
+                            <button data-color="" class="w-4 h-4 rounded-full border border-black/20 bg-white" title="Standard"></button>
+                            <button data-color="bg-amber-100 border-amber-300 text-amber-950" class="w-4 h-4 rounded-full bg-amber-200 border border-amber-400" title="Sticky Yellow"></button>
+                            <button data-color="bg-sky-100 border-sky-300 text-sky-950" class="w-4 h-4 rounded-full bg-sky-200 border border-sky-400" title="Sticky Blue"></button>
+                            <button data-color="bg-rose-100 border-rose-300 text-rose-950" class="w-4 h-4 rounded-full bg-rose-200 border border-rose-400" title="Sticky Pink"></button>
+                            <button data-color="bg-emerald-100 border-emerald-300 text-emerald-950" class="w-4 h-4 rounded-full bg-emerald-200 border border-emerald-400" title="Sticky Green"></button>
                         </div>
                     </div>
-                    <textarea id="txt-${widget.id}" class="w-full flex-grow bg-transparent resize-none outline-none leading-relaxed font-medium placeholder-current transition-all" placeholder="Type instructions here..."></textarea>
+                    <textarea id="txt-${widget.id}" class="w-full flex-grow bg-transparent resize-none outline-none leading-relaxed font-medium placeholder-zinc-500 transition-all" placeholder="Type instructions here..."></textarea>
                 </div>
             `;
 
             const txt = container.querySelector(`#txt-${widget.id}`);
             txt.value = widget.data.text || "";
             txt.style.textAlign = align;
+
+            function updateStickyColor(colorClass) {
+                widget.data.stickyColor = colorClass;
+                const parent = container.closest('.widget-wrapper');
+                // Remove custom palette items
+                parent.classList.remove('bg-amber-100', 'border-amber-300', 'text-amber-950', 'bg-sky-100', 'border-sky-300', 'text-sky-950', 'bg-rose-100', 'border-rose-300', 'text-rose-950', 'bg-emerald-100', 'border-emerald-300', 'text-emerald-950');
+                if (colorClass) {
+                    parent.classList.add(...colorClass.split(' '));
+                }
+            }
+
+            if (stickyColor) updateStickyColor(stickyColor);
 
             function updateSize() {
                 const scale = widget.w / 400;
@@ -1430,6 +1539,13 @@
                 };
             });
 
+            const colorBtns = container.querySelectorAll(`#sticky-palette-${widget.id} button`);
+            colorBtns.forEach(btn => {
+                btn.onclick = () => {
+                    updateStickyColor(btn.dataset.color);
+                };
+            });
+
             widget.onResize = updateSize;
             updateSize(); 
 
@@ -1437,7 +1553,7 @@
         }
 
         // ==========================================
-        // GLOBAL DRAWING (ANNOTATION MODE)
+        // GLOBAL DRAWING (ANNOTATION ENGINE WITH SHAPES)
         // ==========================================
         const globalCanvas = document.getElementById('global-canvas');
         const globalCtx = globalCanvas.getContext('2d');
@@ -1447,7 +1563,10 @@
         let isDrawMode = false;
         let isGlobalDrawing = false;
         let globalColor = '#ef4444';
+        let drawType = 'freehand'; // 'freehand' | 'line' | 'arrow' | 'rect' | 'circle' | 'eraser'
+        let drawThickness = 5;
         let currentGlobalPath = null;
+        let startPoint = null;
 
         function syncGlobalCanvas() {
             globalCanvas.width = window.innerWidth;
@@ -1457,19 +1576,74 @@
         window.addEventListener('resize', syncGlobalCanvas);
         setTimeout(syncGlobalCanvas, 100);
 
+        // Render shapes and lines beautifully
+        function drawShape(ctx, type, p1, p2, color, size) {
+            ctx.beginPath();
+            ctx.strokeStyle = color;
+            ctx.lineWidth = size;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+            
+            if (type === 'line') {
+                ctx.moveTo(p1.x, p1.y);
+                ctx.lineTo(p2.x, p2.y);
+                ctx.stroke();
+            } else if (type === 'arrow') {
+                ctx.moveTo(p1.x, p1.y);
+                ctx.lineTo(p2.x, p2.y);
+                ctx.stroke();
+                
+                // Draw vector arrowhead
+                const angle = Math.atan2(p2.y - p1.y, p2.x - p1.x);
+                const headLength = Math.max(12, size * 2.5);
+                ctx.beginPath();
+                ctx.fillStyle = color;
+                ctx.moveTo(p2.x, p2.y);
+                ctx.lineTo(p2.x - headLength * Math.cos(angle - Math.PI / 6), p2.y - headLength * Math.sin(angle - Math.PI / 6));
+                ctx.lineTo(p2.x - headLength * Math.cos(angle + Math.PI / 6), p2.y - headLength * Math.sin(angle + Math.PI / 6));
+                ctx.fill();
+            } else if (type === 'rect') {
+                ctx.strokeRect(p1.x, p1.y, p2.x - p1.x, p2.y - p1.y);
+            } else if (type === 'circle') {
+                const radius = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+                ctx.arc(p1.x, p1.y, radius, 0, 2 * Math.PI);
+                ctx.stroke();
+            }
+        }
+
         function redrawGlobal() {
             globalCtx.clearRect(0, 0, globalCanvas.width, globalCanvas.height);
-            globalCtx.lineCap = 'round';
-            globalCtx.lineJoin = 'round';
+            globalCtx.save();
+            
             State.globalPaths.forEach(p => {
-                if(!p.points.length) return;
-                globalCtx.beginPath();
-                globalCtx.strokeStyle = p.color;
-                globalCtx.lineWidth = 4;
-                globalCtx.moveTo(p.points[0].x, p.points[0].y);
-                for(let i=1; i<p.points.length; i++) globalCtx.lineTo(p.points[i].x, p.points[i].y);
-                globalCtx.stroke();
+                if(!p.points || p.points.length === 0) return;
+                
+                globalCtx.lineCap = 'round';
+                globalCtx.lineJoin = 'round';
+                
+                if (p.type === 'freehand') {
+                    globalCtx.beginPath();
+                    globalCtx.strokeStyle = p.color;
+                    globalCtx.lineWidth = p.size || 4;
+                    globalCtx.moveTo(p.points[0].x, p.points[0].y);
+                    for(let i=1; i<p.points.length; i++) globalCtx.lineTo(p.points[i].x, p.points[i].y);
+                    globalCtx.stroke();
+                } else if (p.type === 'eraser') {
+                    // Erase by painting with clear composite values
+                    globalCtx.save();
+                    globalCtx.globalCompositeOperation = 'destination-out';
+                    globalCtx.beginPath();
+                    globalCtx.strokeStyle = 'rgba(0,0,0,1)';
+                    globalCtx.lineWidth = p.size || 20;
+                    globalCtx.moveTo(p.points[0].x, p.points[0].y);
+                    for(let i=1; i<p.points.length; i++) globalCtx.lineTo(p.points[i].x, p.points[i].y);
+                    globalCtx.stroke();
+                    globalCtx.restore();
+                } else {
+                    drawShape(globalCtx, p.type, p.points[0], p.points[1], p.color, p.size);
+                }
             });
+            globalCtx.restore();
         }
 
         function toggleDrawMode() {
@@ -1490,33 +1664,64 @@
 
         globalCanvas.addEventListener('pointerdown', (e) => {
             isGlobalDrawing = true;
-            currentGlobalPath = { color: globalColor, points: [{x: e.clientX, y: e.clientY}] };
-            globalCtx.beginPath();
-            globalCtx.strokeStyle = globalColor;
-            globalCtx.lineWidth = 4;
-            globalCtx.lineCap = 'round';
-            globalCtx.moveTo(e.clientX, e.clientY);
+            startPoint = {x: e.clientX, y: e.clientY};
+            
+            currentGlobalPath = { 
+                type: drawType,
+                color: globalColor, 
+                size: drawThickness,
+                points: [startPoint] 
+            };
+            
+            if (drawType === 'freehand' || drawType === 'eraser') {
+                globalCtx.beginPath();
+                if (drawType === 'eraser') {
+                    globalCtx.globalCompositeOperation = 'destination-out';
+                    globalCtx.strokeStyle = 'rgba(0,0,0,1)';
+                } else {
+                    globalCtx.globalCompositeOperation = 'source-over';
+                    globalCtx.strokeStyle = globalColor;
+                }
+                globalCtx.lineWidth = drawThickness;
+                globalCtx.lineCap = 'round';
+                globalCtx.moveTo(e.clientX, e.clientY);
+            }
         });
 
         globalCanvas.addEventListener('pointermove', (e) => {
             if(!isGlobalDrawing) return;
-            const last = currentGlobalPath.points[currentGlobalPath.points.length - 1];
-            if(Math.hypot(e.clientX - last.x, e.clientY - last.y) > 3) {
-                currentGlobalPath.points.push({x: e.clientX, y: e.clientY});
-                globalCtx.lineTo(e.clientX, e.clientY);
-                globalCtx.stroke();
+            
+            if (drawType === 'freehand' || drawType === 'eraser') {
+                const last = currentGlobalPath.points[currentGlobalPath.points.length - 1];
+                if(Math.hypot(e.clientX - last.x, e.clientY - last.y) > 3) {
+                    currentGlobalPath.points.push({x: e.clientX, y: e.clientY});
+                    globalCtx.lineTo(e.clientX, e.clientY);
+                    globalCtx.stroke();
+                }
+            } else {
+                // Interactive Vector Shape Guide overlays
+                redrawGlobal();
+                globalCtx.save();
+                globalCtx.globalCompositeOperation = 'source-over';
+                drawShape(globalCtx, drawType, startPoint, {x: e.clientX, y: e.clientY}, globalColor, drawThickness);
+                globalCtx.restore();
             }
         });
 
-        const stopGlobalDraw = () => {
+        const stopGlobalDraw = (e) => {
             if(isGlobalDrawing) {
                 isGlobalDrawing = false;
+                if (drawType !== 'freehand' && drawType !== 'eraser') {
+                    currentGlobalPath.points.push({x: e.clientX, y: e.clientY});
+                }
                 State.globalPaths.push(currentGlobalPath);
+                redrawGlobal();
             }
         };
         globalCanvas.addEventListener('pointerup', stopGlobalDraw);
         globalCanvas.addEventListener('pointerleave', stopGlobalDraw);
 
+        // Drawing Toolbar Event Listeners
         document.querySelectorAll('#global-colors button').forEach(btn => {
             btn.onclick = () => {
                 globalColor = btn.dataset.c;
@@ -1524,6 +1729,19 @@
                 btn.classList.add('border-white', 'scale-110');
             };
         });
+
+        // Set Toolbar draw tools
+        document.querySelectorAll('#draw-shapes button').forEach(btn => {
+            btn.onclick = () => {
+                drawType = btn.dataset.t;
+                document.querySelectorAll('#draw-shapes button').forEach(b => b.className = "shape-btn p-1.5 rounded-lg text-zinc-400 hover:text-white");
+                btn.className = "shape-btn p-1.5 rounded-lg bg-indigo-600 text-white";
+            };
+        });
+
+        document.getElementById('draw-thickness').oninput = (e) => {
+            drawThickness = parseInt(e.target.value);
+        };
 
         document.getElementById('global-undo').onclick = () => {
             State.globalPaths.pop();
