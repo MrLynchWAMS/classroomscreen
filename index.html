@@ -70,10 +70,45 @@
             color: #1f2937;
         }
 
-        /* Inputs reset */
-        input:focus, textarea:focus {
-            outline: none;
+        /* Transparent Ghost Theme */
+        .theme-transparent {
+            background: transparent !important;
+            border-color: transparent !important;
+            box-shadow: none !important;
+            backdrop-filter: none !important;
+            color: #ffffff;
+            text-shadow: 0 2px 5px rgba(0,0,0,0.8);
         }
+        
+        .theme-transparent .drag-handle,
+        .theme-transparent .resize-handle,
+        .theme-transparent .widget-controls {
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+
+        .theme-transparent:hover .drag-handle,
+        .theme-transparent:focus-within .drag-handle,
+        .theme-transparent:hover .resize-handle,
+        .theme-transparent:focus-within .resize-handle,
+        .theme-transparent:hover .widget-controls,
+        .theme-transparent:focus-within .widget-controls {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .theme-transparent .drag-handle { background: rgba(0,0,0,0.5) !important; border-bottom: none; border-radius: 1.5rem 1.5rem 0 0;}
+        .theme-transparent input, .theme-transparent textarea { color: #ffffff; text-shadow: 0 2px 5px rgba(0,0,0,0.8); }
+        .theme-transparent .quick-btn, .theme-transparent .sym-btn, .theme-transparent .del-btn {
+            background: rgba(0,0,0,0.4) !important;
+            border: 1px solid rgba(255,255,255,0.2) !important;
+            color: white !important;
+        }
+        .theme-transparent canvas { background: transparent !important; border-color: transparent !important; }
+
+        /* Inputs reset */
+        input:focus, textarea:focus { outline: none; }
         
         /* Range Slider Styling */
         input[type=range] {
@@ -93,7 +128,8 @@
         }
     </style>
 </head>
-<body id="app-body" class="bg-slate-900 transition-colors duration-700 bg-cover bg-center select-none">
+<!-- ADDED: bg-no-repeat bg-fixed w-screen h-screen to prevent tiling -->
+<body id="app-body" class="bg-slate-900 transition-colors duration-700 bg-cover bg-center bg-no-repeat bg-fixed w-screen h-screen overflow-hidden select-none">
 
     <!-- Darkener Overlay for readability -->
     <div id="bg-overlay" class="absolute inset-0 bg-black/20 pointer-events-none z-0 transition-opacity duration-500"></div>
@@ -118,6 +154,8 @@
                 <button onclick="setTheme('glass')" class="theme-btn px-3 py-1.5 text-xs font-black uppercase rounded-xl transition-all bg-white text-indigo-900 shadow-sm" data-theme="glass">Glass</button>
                 <button onclick="setTheme('light')" class="theme-btn px-3 py-1.5 text-xs font-black uppercase rounded-xl transition-all hover:bg-white/20" data-theme="light">Light</button>
                 <button onclick="setTheme('dark')" class="theme-btn px-3 py-1.5 text-xs font-black uppercase rounded-xl transition-all hover:bg-white/20" data-theme="dark">Dark</button>
+                <!-- ADDED Ghost Theme button -->
+                <button onclick="setTheme('transparent')" class="theme-btn px-3 py-1.5 text-xs font-black uppercase rounded-xl transition-all hover:bg-white/20" data-theme="transparent">Ghost</button>
             </div>
 
             <div class="w-px h-6 bg-white/20 mx-2"></div>
@@ -140,14 +178,16 @@
     </div>
 
     <!-- Background Selector Popup (Hidden by default) -->
-    <div id="bg-panel" class="hidden absolute top-24 left-6 z-40 bg-white/95 backdrop-blur-2xl border border-zinc-200 p-5 rounded-3xl shadow-2xl w-80 transform transition-all">
+    <!-- WIDENED panel to accommodate grid-cols-4 -->
+    <div id="bg-panel" class="hidden absolute top-24 left-6 z-40 bg-white/95 backdrop-blur-2xl border border-zinc-200 p-5 rounded-3xl shadow-2xl w-96 transform transition-all">
         <div class="flex justify-between items-center mb-4">
             <h3 class="font-extrabold text-zinc-800 text-xs uppercase tracking-widest">Screen Backgrounds</h3>
             <button id="close-bg" class="text-zinc-400 hover:text-zinc-800 bg-zinc-100 hover:bg-zinc-200 p-1 rounded-full transition-colors">
                 <i data-lucide="x" class="w-4 h-4"></i>
             </button>
         </div>
-        <div id="bg-grid" class="grid grid-cols-3 gap-2">
+        <!-- CHANGED to grid-cols-4 -->
+        <div id="bg-grid" class="grid grid-cols-4 gap-2">
             <!-- Populated via JS -->
         </div>
         <div class="mt-4 pt-3 border-t border-zinc-200">
@@ -181,7 +221,6 @@
     <!-- Bottom Dock -->
     <div id="bottom-dock" class="absolute bottom-8 left-1/2 transform -translate-x-1/2 z-30 transition-all duration-500 pointer-events-auto">
         <div class="bg-zinc-900/90 backdrop-blur-2xl shadow-2xl rounded-[2rem] px-4 py-3 flex items-center space-x-2 border border-zinc-700/50">
-            <!-- Dock Buttons -->
             <button class="dock-btn text-sky-400 hover:bg-zinc-800" data-type="clock">
                 <div class="icon-wrap bg-sky-500/10"><i data-lucide="clock"></i></div><span>Clock</span>
             </button>
@@ -250,10 +289,15 @@
         // ==========================================
         // STATE & CONSTANTS
         // ==========================================
+        // ADDED Nature and Science Unsplash Links
         const BACKGROUNDS = [
             { id: 'bg1', type: 'image', url: 'https://images.unsplash.com/photo-1511497584788-876760111969?auto=format&fit=crop&w=1920&q=80' },
             { id: 'bg2', type: 'image', url: 'https://images.unsplash.com/photo-1507842217343-583bb7270b66?auto=format&fit=crop&w=1920&q=80' },
             { id: 'bg3', type: 'image', url: 'https://images.unsplash.com/photo-1506318137071-a8e063b4bec0?auto=format&fit=crop&w=1920&q=80' },
+            { id: 'bg-mount', type: 'image', url: 'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=1920&q=80' }, // Mountains
+            { id: 'bg-ocean', type: 'image', url: 'https://images.unsplash.com/photo-1582967635903-78b09320e171?auto=format&fit=crop&w=1920&q=80' }, // Coral Reef
+            { id: 'bg-science', type: 'image', url: 'https://images.unsplash.com/photo-1532094349884-543bc11b234d?auto=format&fit=crop&w=1920&q=80' }, // Science/Lab
+            { id: 'bg-aurora', type: 'image', url: 'https://images.unsplash.com/photo-1531366936310-6cb1c832524a?auto=format&fit=crop&w=1920&q=80' }, // Aurora Borealis
             { id: 'bg4', type: 'gradient', css: 'bg-gradient-to-tr from-orange-400 via-pink-500 to-indigo-600' },
             { id: 'bg5', type: 'gradient', css: 'bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900' },
             { id: 'bg6', type: 'gradient', css: 'bg-gradient-to-br from-emerald-800 to-teal-950' },
@@ -262,20 +306,18 @@
         ];
 
         const State = {
-            widgets: [], // { id, type, x, y, w, h, data }
+            widgets: [],
             theme: 'glass',
             background: BACKGROUNDS[0],
             globalPaths: [],
             maxZ: 100
         };
 
-        // DOM Elements
         const workspace = document.getElementById('workspace');
         const emptyState = document.getElementById('empty-state');
         const appBody = document.getElementById('app-body');
         const bgOverlay = document.getElementById('bg-overlay');
 
-        // Initializer
         lucide.createIcons();
         initBackgroundPanel();
         loadStateFromURL();
@@ -289,7 +331,6 @@
             emptyState.style.opacity = State.widgets.length === 0 ? '1' : '0';
         }
 
-        // Web Audio API Synth Buzzer
         function playBuzzer() {
             try {
                 const AudioContext = window.AudioContext || window.webkitAudioContext;
@@ -340,7 +381,6 @@
             const encoded = btoa(encodeURIComponent(JSON.stringify(State)));
             const url = `${window.location.origin}${window.location.pathname}#${encoded}`;
             try {
-                // Clipboard fallback logic
                 const tempInput = document.createElement("input");
                 tempInput.value = url;
                 document.body.appendChild(tempInput);
@@ -369,7 +409,6 @@
             checkEmptyState();
         });
 
-        // Background Panel Logic
         const bgPanel = document.getElementById('bg-panel');
         document.getElementById('btn-bg').addEventListener('click', () => {
             bgPanel.classList.toggle('hidden');
@@ -390,7 +429,6 @@
                 grid.appendChild(btn);
             });
 
-            // Custom Background Handler
             document.getElementById('custom-bg-apply').addEventListener('click', () => {
                 const url = document.getElementById('custom-bg-input').value.trim();
                 if (url) {
@@ -404,7 +442,8 @@
 
         function applyBackground(bg) {
             State.background = bg;
-            appBody.className = `bg-slate-900 transition-colors duration-700 bg-cover bg-center select-none ${bg.type !== 'image' ? bg.css : ''}`;
+            // Preserving body sizing attributes to prevent tiling layout breaks
+            appBody.className = `bg-slate-900 transition-colors duration-700 bg-cover bg-center bg-no-repeat bg-fixed w-screen h-screen overflow-hidden select-none ${bg.type !== 'image' ? bg.css : ''}`;
             if (bg.type === 'image') {
                 appBody.style.backgroundImage = `url(${bg.url})`;
                 bgOverlay.style.opacity = '1';
@@ -416,7 +455,6 @@
 
         function setTheme(theme) {
             State.theme = theme;
-            // Update active buttons
             document.querySelectorAll('.theme-btn').forEach(btn => {
                 if (btn.dataset.theme === theme) {
                     btn.className = "theme-btn px-3 py-1.5 text-xs font-black uppercase rounded-xl transition-all bg-white text-indigo-900 shadow-sm";
@@ -424,13 +462,11 @@
                     btn.className = "theme-btn px-3 py-1.5 text-xs font-black uppercase rounded-xl transition-all text-white hover:bg-white/20";
                 }
             });
-            // Update existing widgets
             document.querySelectorAll('.widget-wrapper').forEach(w => {
                 w.className = `widget-wrapper pointer-events-auto absolute rounded-[1.5rem] flex flex-col overflow-hidden transition-shadow duration-300 theme-${theme} widget-anim`;
             });
         }
 
-        // Dock Spawners
         document.querySelectorAll('.dock-btn').forEach(btn => {
             btn.addEventListener('click', () => {
                 const type = btn.dataset.type;
@@ -450,8 +486,7 @@
                 stopwatch: { w: 300, h: 280 },
                 timetable: { w: 380, h: 400 },
                 symbols: { w: 320, h: 320 },
-                text: { w: 400, h: 300 },
-                draw: { w: 450, h: 380 }
+                text: { w: 400, h: 300 }
             };
             const d = defaults[type] || { w: 300, h: 300 };
             const widget = {
@@ -481,7 +516,6 @@
             el.style.height = `${widget.h}px`;
             el.style.zIndex = ++State.maxZ;
 
-            // Header (Drag handle)
             const header = document.createElement('div');
             header.className = "drag-handle h-10 flex flex-shrink-0 items-center justify-between px-4 cursor-grab active:cursor-grabbing border-b border-black/[0.05] bg-black/[0.03] hover:bg-black/[0.06] transition-colors select-none";
             header.innerHTML = `
@@ -494,14 +528,11 @@
                 </button>
             `;
 
-            // Content Area
             const content = document.createElement('div');
             content.className = "p-5 flex-grow flex flex-col overflow-hidden relative";
             
-            // Render specific tool
             const cleanupFn = renderWidgetContent(widget, content);
 
-            // Resize Handle
             const resizer = document.createElement('div');
             resizer.className = "resize-handle absolute bottom-1 right-1 w-5 h-5 cursor-se-resize flex items-end justify-end group p-1 z-20";
             resizer.innerHTML = `<svg width="8" height="8" viewBox="0 0 10 10" class="opacity-30 group-hover:opacity-100 transition-opacity fill-current"><line x1="10" y1="0" x2="0" y2="10" stroke="currentColor" stroke-width="1.5"/><line x1="10" y1="4" x2="4" y2="10" stroke="currentColor" stroke-width="1.5"/></svg>`;
@@ -514,7 +545,6 @@
             lucide.createIcons({ root: el });
             checkEmptyState();
 
-            // --- Event Listeners: Drag, Resize, Close ---
             el.addEventListener('mousedown', () => { el.style.zIndex = ++State.maxZ; });
             el.addEventListener('touchstart', () => { el.style.zIndex = ++State.maxZ; }, {passive:true});
 
@@ -526,7 +556,6 @@
                 checkEmptyState();
             };
 
-            // Dragging Logic
             let isDragging = false;
             let dragStartX, dragStartY;
             
@@ -537,10 +566,9 @@
                 dragStartX = e.clientX - rect.left;
                 dragStartY = e.clientY - rect.top;
                 header.classList.add('cursor-grabbing');
-                el.classList.remove('widget-anim'); // Remove anim class so dragging is smooth
+                el.classList.remove('widget-anim'); 
             });
 
-            // Resizing Logic
             let isResizing = false;
             let resizeStartX, resizeStartY, startW, startH;
 
@@ -556,7 +584,6 @@
                 el.classList.remove('widget-anim');
             });
 
-            // Global Pointer Handlers for Drag/Resize
             const onPointerMove = (e) => {
                 if (isDragging) {
                     e.preventDefault();
@@ -570,7 +597,7 @@
                     widget.h = Math.max(200, startH + (e.clientY - resizeStartY));
                     el.style.width = `${widget.w}px`;
                     el.style.height = `${widget.h}px`;
-                    if(widget.onResize) widget.onResize(); // Notify internal widget content
+                    if(widget.onResize) widget.onResize(); 
                 }
             };
 
@@ -587,7 +614,6 @@
             document.addEventListener('pointermove', onPointerMove);
             document.addEventListener('pointerup', onPointerUp);
 
-            // Save cleanup to remove listeners if widget closed
             el._cleanupDom = () => {
                 document.removeEventListener('pointermove', onPointerMove);
                 document.removeEventListener('pointerup', onPointerUp);
@@ -613,13 +639,15 @@
             widget.data.isDigital = widget.data.isDigital !== false;
             
             container.innerHTML = `
-                <div class="flex flex-col items-center justify-center h-full w-full">
+                <div class="flex flex-col items-center justify-center h-full w-full relative">
                     <div id="digital-view-${widget.id}" class="text-center w-full ${!widget.data.isDigital ? 'hidden' : ''}">
                         <div class="time-display text-5xl font-black tracking-tighter"></div>
                         <div class="date-display text-sm font-bold uppercase tracking-wider text-indigo-500 mt-2"></div>
                     </div>
                     <canvas id="analog-view-${widget.id}" width="160" height="160" class="${widget.data.isDigital ? 'hidden' : ''}"></canvas>
-                    <button id="toggle-${widget.id}" class="mt-auto px-3 py-1.5 text-[10px] font-black uppercase rounded-lg hover:bg-black/5 opacity-50 hover:opacity-100 transition-all">
+                    
+                    <!-- widget-controls hides in transparent theme -->
+                    <button id="toggle-${widget.id}" class="widget-controls mt-auto px-3 py-1.5 text-[10px] font-black uppercase rounded-lg hover:bg-black/5 opacity-50 hover:opacity-100 transition-all">
                         Switch Mode
                     </button>
                 </div>
@@ -638,7 +666,6 @@
                 ctx.save();
                 ctx.translate(radius, radius);
                 
-                // Face
                 ctx.beginPath();
                 ctx.arc(0, 0, radius - 6, 0, 2 * Math.PI);
                 ctx.strokeStyle = '#4f46e5';
@@ -649,7 +676,6 @@
                 const min = time.getMinutes();
                 const sec = time.getSeconds();
 
-                // Hands
                 const drawHand = (pos, length, width, color) => {
                     ctx.beginPath();
                     ctx.lineWidth = width;
@@ -690,7 +716,7 @@
 
             update();
             const interval = setInterval(update, 1000);
-            return () => clearInterval(interval); // Cleanup
+            return () => clearInterval(interval); 
         }
 
         // --- 2. TIMER ---
@@ -711,13 +737,13 @@
                         <div id="time-${widget.id}" class="absolute text-4xl font-black font-mono tracking-tighter text-center"></div>
                     </div>
                     
-                    <div class="flex space-x-2 mt-4">
+                    <div class="widget-controls flex space-x-2 mt-4">
                         <button class="quick-btn px-2.5 py-1 text-xs font-bold rounded-lg bg-black/5 hover:bg-black/10 transition-colors" data-add="30">+30s</button>
                         <button class="quick-btn px-2.5 py-1 text-xs font-bold rounded-lg bg-black/5 hover:bg-black/10 transition-colors" data-add="60">+1m</button>
                         <button class="quick-btn px-2.5 py-1 text-xs font-bold rounded-lg bg-black/5 hover:bg-black/10 transition-colors" data-add="300">+5m</button>
                     </div>
 
-                    <div class="flex space-x-3 mt-4">
+                    <div class="widget-controls flex space-x-3 mt-4">
                         <button id="play-${widget.id}" class="w-24 py-2.5 rounded-full text-white font-bold text-sm shadow-md transition-all active:scale-95 bg-green-500 hover:bg-green-600">Start</button>
                         <button id="reset-${widget.id}" class="p-2.5 rounded-full bg-black/5 hover:bg-black/10 transition-all active:scale-95"><i data-lucide="rotate-ccw" class="w-4 h-4"></i></button>
                     </div>
@@ -806,7 +832,7 @@
                         <div id="sw-${widget.id}" class="text-5xl font-mono font-black tracking-tighter text-purple-600">00:00.00</div>
                     </div>
                     <div id="laps-${widget.id}" class="flex-grow my-2 overflow-y-auto space-y-1 pr-2"></div>
-                    <div class="flex space-x-2 mt-auto">
+                    <div class="widget-controls flex space-x-2 mt-auto">
                         <button id="play-${widget.id}" class="flex-grow py-2.5 rounded-xl font-bold text-white transition-all active:scale-95 shadow-md bg-purple-600 hover:bg-purple-700">Start</button>
                         <button id="lap-${widget.id}" class="px-4 py-2.5 rounded-xl bg-purple-500/20 text-purple-600 hover:bg-purple-500/30 font-bold transition-all active:scale-95 hidden">Lap</button>
                         <button id="reset-${widget.id}" class="p-2.5 rounded-xl bg-black/5 hover:bg-black/10 transition-all active:scale-95"><i data-lucide="rotate-ccw" class="w-4 h-4"></i></button>
@@ -892,7 +918,7 @@
             container.innerHTML = `
                 <div class="flex flex-col h-full w-full justify-between">
                     <div id="tt-rows-${widget.id}" class="flex-grow overflow-y-auto space-y-2 mb-3 pr-1"></div>
-                    <button id="add-${widget.id}" class="flex items-center justify-center space-x-2 py-2.5 bg-black/5 hover:bg-black/10 rounded-xl font-bold text-[10px] uppercase tracking-wider transition-all active:scale-95">
+                    <button id="add-${widget.id}" class="widget-controls flex items-center justify-center space-x-2 py-2.5 bg-black/5 hover:bg-black/10 rounded-xl font-bold text-[10px] uppercase tracking-wider transition-all active:scale-95">
                         <i data-lucide="plus" class="w-3 h-3"></i> <span>Add Row</span>
                     </button>
                 </div>
@@ -906,13 +932,12 @@
                     const rowEl = document.createElement('div');
                     rowEl.className = `flex items-center space-x-2 p-2.5 rounded-xl border-l-4 ${row.color} transition-all shadow-sm`;
                     
-                    // Theming specific overrides for dark mode compatibility
                     if(State.theme === 'dark') rowEl.classList.add('text-white', 'mix-blend-lighten');
 
                     rowEl.innerHTML = `
                         <input type="text" class="font-bold text-xs bg-transparent w-16 border-b border-transparent focus:border-current" value="${row.time}">
                         <input type="text" class="text-sm font-semibold bg-transparent flex-grow border-b border-transparent focus:border-current" value="${row.task}">
-                        <button class="del-btn p-1 hover:bg-black/10 rounded-lg transition-colors opacity-50 hover:opacity-100"><i data-lucide="trash-2" class="w-3 h-3"></i></button>
+                        <button class="del-btn widget-controls p-1 hover:bg-black/10 rounded-lg transition-colors opacity-50 hover:opacity-100"><i data-lucide="trash-2" class="w-3 h-3"></i></button>
                     `;
 
                     const inputs = rowEl.querySelectorAll('input');
@@ -949,7 +974,7 @@
             container.innerHTML = `
                 <div class="flex flex-col justify-between h-full select-none">
                     <div class="grid grid-cols-2 gap-3" id="sym-grid-${widget.id}"></div>
-                    <div class="mt-3 text-center bg-black/5 p-2 rounded-xl border border-dashed border-black/20">
+                    <div class="widget-controls mt-3 text-center bg-black/5 p-2 rounded-xl border border-dashed border-black/20">
                         <p id="sym-desc-${widget.id}" class="text-xs font-bold opacity-60"></p>
                     </div>
                 </div>
@@ -992,7 +1017,7 @@
 
             container.innerHTML = `
                 <div class="flex flex-col h-full w-full justify-between">
-                    <div class="flex items-center justify-between mb-3 border-b border-black/10 pb-2 text-[10px] font-bold uppercase tracking-wider opacity-60">
+                    <div class="widget-controls flex items-center justify-between mb-3 border-b border-black/10 pb-2 text-[10px] font-bold uppercase tracking-wider opacity-60">
                         <div class="flex items-center space-x-2">
                             <span>Base Size:</span>
                             <input type="range" id="fs-${widget.id}" min="12" max="48" value="${baseSize}" class="w-16">
@@ -1003,7 +1028,7 @@
                             <button data-align="right" class="px-1.5 py-1 rounded hover:bg-black/10 ${align==='right'?'bg-black/10':''}"><i data-lucide="align-right" class="w-3 h-3"></i></button>
                         </div>
                     </div>
-                    <textarea id="txt-${widget.id}" class="w-full flex-grow bg-transparent resize-none outline-none leading-relaxed font-medium placeholder-current opacity-80 transition-all" placeholder="Type instructions here..."></textarea>
+                    <textarea id="txt-${widget.id}" class="w-full flex-grow bg-transparent resize-none outline-none leading-relaxed font-medium placeholder-current transition-all" placeholder="Type instructions here..."></textarea>
                 </div>
             `;
 
@@ -1012,7 +1037,6 @@
             txt.style.textAlign = align;
 
             function updateSize() {
-                // Scale text proportionally to the width of the widget (default width is 400)
                 const scale = widget.w / 400;
                 const calculatedSize = Math.max(10, baseSize * scale);
                 txt.style.fontSize = `${calculatedSize}px`;
@@ -1037,9 +1061,8 @@
                 };
             });
 
-            // Bind to the resize hook we set up in the widget wrapper
             widget.onResize = updateSize;
-            updateSize(); // Apply initial size
+            updateSize(); 
 
             return null;
         }
@@ -1086,7 +1109,7 @@
                 globalCanvas.classList.remove('pointer-events-none');
                 globalCanvas.classList.add('pointer-events-auto', 'cursor-crosshair');
                 drawToolbar.classList.remove('hidden');
-                bottomDock.classList.add('translate-y-32', 'opacity-0'); // Hide bottom dock
+                bottomDock.classList.add('translate-y-32', 'opacity-0');
                 syncGlobalCanvas();
             } else {
                 globalCanvas.classList.add('pointer-events-none');
@@ -1109,7 +1132,6 @@
         globalCanvas.addEventListener('pointermove', (e) => {
             if(!isGlobalDrawing) return;
             const last = currentGlobalPath.points[currentGlobalPath.points.length - 1];
-            // Throttle points collection
             if(Math.hypot(e.clientX - last.x, e.clientY - last.y) > 3) {
                 currentGlobalPath.points.push({x: e.clientX, y: e.clientY});
                 globalCtx.lineTo(e.clientX, e.clientY);
@@ -1126,7 +1148,6 @@
         globalCanvas.addEventListener('pointerup', stopGlobalDraw);
         globalCanvas.addEventListener('pointerleave', stopGlobalDraw);
 
-        // Draw Toolbar Events
         document.querySelectorAll('#global-colors button').forEach(btn => {
             btn.onclick = () => {
                 globalColor = btn.dataset.c;
