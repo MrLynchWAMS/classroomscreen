@@ -445,11 +445,8 @@
             });
         }
 
-        // FIXED: Dynamically reset background-color classes and inline styling to avoid dark blue compounding overlap bugs
         function applyBackground(bg) {
             State.background = bg;
-            
-            // Wipe out inline attributes cleanly
             appBody.style.backgroundImage = '';
             appBody.style.backgroundColor = '';
             
@@ -504,8 +501,8 @@
             const defaults = {
                 clock: { w: 300, h: 220 },
                 timer: { w: 320, h: 320 },
-                stopwatch: { w: 310, h: 250 }, // Adjusted stopwatch dimensions
-                timetable: { w: 380, h: 420 },
+                stopwatch: { w: 310, h: 250 },
+                timetable: { w: 420, h: 480 },
                 symbols: { w: 320, h: 340 },
                 text: { w: 400, h: 300 }
             };
@@ -615,7 +612,7 @@
                 } else if (isResizing) {
                     e.preventDefault();
                     widget.w = Math.max(250, startW + (e.clientX - resizeStartX));
-                    widget.h = Math.max(180, startH + (e.clientY - resizeStartY));
+                    widget.h = Math.max(200, startH + (e.clientY - resizeStartY));
                     el.style.width = `${widget.w}px`;
                     el.style.height = `${widget.h}px`;
                     if(widget.onResize) widget.onResize(); 
@@ -739,7 +736,7 @@
             return () => clearInterval(interval); 
         }
 
-        // --- 2. TIMER (FIXED: EDITABLE PRECISE INPUTS WHEN PAUSED) ---
+        // --- 2. TIMER ---
         function renderTimer(widget, container) {
             let total = widget.data.total || 300;
             let left = widget.data.left !== undefined ? widget.data.left : 300;
@@ -755,7 +752,6 @@
                             <circle id="ring-${widget.id}" cx="50" cy="50" r="45" class="stroke-amber-500 fill-none transition-all duration-1000 ease-linear" stroke-width="5" stroke-dasharray="283" stroke-dashoffset="0"></circle>
                         </svg>
                         <div id="time-container-${widget.id}" class="absolute text-4xl font-black font-mono tracking-tighter text-center flex items-center justify-center space-x-1">
-                            <!-- Filled dynamically with input fields when paused, or static text when counting down -->
                         </div>
                     </div>
                     
@@ -778,15 +774,11 @@
             const resetBtn = container.querySelector(`#reset-${widget.id}`);
 
             function updateUI() {
-                // Ensure proper bounds
                 if (left < 0) left = 0;
-                
                 const progress = total > 0 ? (left / total) * 100 : 0;
                 ring.style.strokeDashoffset = 283 - (283 * progress) / 100;
-                
                 widget.data.total = total;
                 widget.data.left = left;
-
                 renderTimeDisplay();
             }
 
@@ -810,7 +802,7 @@
                         const m = Math.max(0, parseInt(inpM.value) || 0);
                         const s = Math.max(0, Math.min(59, parseInt(inpS.value) || 0));
                         left = (m * 60) + s;
-                        total = left; // resets full circle bar context so countdown is proportional
+                        total = left;
                         widget.data.left = left;
                         widget.data.total = total;
                         updateUI();
@@ -845,7 +837,6 @@
                     playBtn.className = "w-24 py-2.5 rounded-full text-white font-bold text-sm shadow-md transition-all active:scale-95 bg-green-500 hover:bg-green-600";
                     updateUI();
                 } else {
-                    // Lock-in manually edited input elements before ticking
                     const inpM = timeContainer.querySelector(`#inp-timer-m-${widget.id}`);
                     const inpS = timeContainer.querySelector(`#inp-timer-s-${widget.id}`);
                     if (inpM && inpS) {
@@ -854,7 +845,6 @@
                         left = (m * 60) + s;
                         total = left;
                     }
-
                     if (left === 0) left = total;
                     if (left > 0) {
                         interval = setInterval(tick, 1000);
@@ -864,7 +854,7 @@
                         playBtn.className = "w-24 py-2.5 rounded-full text-white font-bold text-sm shadow-md transition-all active:scale-95 bg-amber-500 hover:bg-amber-600";
                         updateUI();
                     }
-                };
+                }
             };
 
             resetBtn.onclick = () => {
@@ -890,7 +880,7 @@
             return () => clearInterval(interval);
         }
 
-        // --- 3. STOPWATCH (COMPACT SIZING TO PREVENT SCREEN CUTOFF) ---
+        // --- 3. STOPWATCH ---
         function renderStopwatch(widget, container) {
             let ms = widget.data.ms || 0;
             let isRunning = false;
@@ -900,9 +890,7 @@
             container.innerHTML = `
                 <div class="flex flex-col h-full select-none justify-between">
                     <div class="text-center py-1 relative flex flex-col items-center">
-                        <!-- Redesigned interactive container with narrow, tight input dimensions to prevent cutoff -->
                         <div id="sw-interactive-${widget.id}" class="flex items-center justify-center space-x-1 text-3xl font-mono font-black tracking-tight text-purple-600 w-full">
-                            <!-- Populated dynamically -->
                         </div>
                         <p id="edit-hint-${widget.id}" class="text-[8px] font-bold tracking-widest text-zinc-400 uppercase mt-1">Click to edit starting time</p>
                     </div>
@@ -942,7 +930,6 @@
                     interactiveContainer.innerHTML = `<span>${format(ms)}</span>`;
                 } else {
                     hint.style.visibility = "visible";
-                    // Using small, highly specified widths to comfortably align everything on one line
                     interactiveContainer.innerHTML = `
                         <input type="number" id="inp-m-${widget.id}" min="0" max="99" class="w-10 bg-black/5 rounded text-center font-black focus:bg-purple-500/10 focus:ring-1 focus:ring-purple-400" value="${String(m).padStart(2, '0')}">
                         <span>:</span>
@@ -1027,119 +1014,292 @@
             return () => clearInterval(interval);
         }
 
-        // --- 4. TIMETABLE / SCHEDULE ---
+        // --- 4. TIMETABLE / SCHEDULE (DYNAMIC MASTER AGENDA SHIFTING ENGINE) ---
         function renderTimetable(widget, container) {
-            let rows = widget.data.rows || [
-                { time: '09:00', task: 'Morning Warm-up', color: 'border-indigo-500 bg-indigo-500/10 text-indigo-700' },
-                { time: '10:15', task: 'Mathematics Core', color: 'border-emerald-500 bg-emerald-500/10 text-emerald-700' },
-                { time: '11:30', task: 'Science Exploration', color: 'border-amber-500 bg-amber-500/10 text-amber-700' },
-                { time: '13:00', task: 'History Seminar', color: 'border-pink-500 bg-pink-500/10 text-pink-700' }
+            // Master list of daily Period times (Teacher template start times)
+            let periods = widget.data.periods || [
+                { id: 'p1', name: 'Period 1', time: '08:30' },
+                { id: 'p2', name: 'Period 2', time: '09:45' },
+                { id: 'p3', name: 'Period 3', time: '11:00' },
+                { id: 'p4', name: 'Period 4', time: '13:15' }
+            ];
+
+            // Set of agenda activities occurring WITHIN each class period, defined by relative offsets
+            let agenda = widget.data.agenda || [
+                { id: 'a1', offset: 0, task: 'Bell Ringer / Warm-up', color: 'border-indigo-500 bg-indigo-500/5 text-indigo-700' },
+                { id: 'a2', offset: 10, task: 'Class Concept Presentation', color: 'border-amber-500 bg-amber-500/5 text-amber-700' },
+                { id: 'a3', offset: 25, task: 'Collaborative Groupwork Lab', color: 'border-emerald-500 bg-emerald-500/5 text-emerald-700' },
+                { id: 'a4', offset: 45, task: 'Wrap-up & Exit Ticket', color: 'border-pink-500 bg-pink-500/5 text-pink-700' }
             ];
 
             const colors = [
-                'border-indigo-500 bg-indigo-500/10 text-indigo-700',
-                'border-amber-500 bg-amber-500/10 text-amber-700',
-                'border-emerald-500 bg-emerald-500/10 text-emerald-700',
-                'border-pink-500 bg-pink-500/10 text-pink-700',
-                'border-sky-500 bg-sky-500/10 text-sky-700'
+                'border-indigo-500 bg-indigo-500/5 text-indigo-700',
+                'border-amber-500 bg-amber-500/5 text-amber-700',
+                'border-emerald-500 bg-emerald-500/5 text-emerald-700',
+                'border-pink-500 bg-pink-500/5 text-pink-700',
+                'border-sky-500 bg-sky-500/5 text-sky-700'
             ];
 
-            container.innerHTML = `
-                <div class="flex flex-col h-full w-full justify-between">
-                    <div id="live-banner-${widget.id}" class="text-[10px] font-black tracking-wider text-indigo-500 uppercase flex items-center justify-between px-1 mb-2">
-                        <span>Dynamic Schedule</span>
-                        <span id="countdown-${widget.id}" class="text-right text-indigo-600">Checking classes...</span>
-                    </div>
+            // Toggles between showing Live presentation (View) or adjusting period template guidelines (Edit)
+            let isEditMode = widget.data.isEditMode !== false;
 
-                    <div id="tt-rows-${widget.id}" class="flex-grow overflow-y-auto space-y-2 mb-3 pr-1 max-h-[220px]"></div>
-                    
-                    <button id="add-${widget.id}" class="widget-controls flex items-center justify-center space-x-2 py-2.5 bg-black/5 hover:bg-black/10 rounded-xl font-bold text-[10px] uppercase tracking-wider transition-all active:scale-95">
-                        <i data-lucide="plus" class="w-3 h-3"></i> <span>Add Class Row</span>
-                    </button>
-                </div>
-            `;
-
-            const rowsContainer = container.querySelector(`#tt-rows-${widget.id}`);
-            const countdownEl = container.querySelector(`#countdown-${widget.id}`);
-            
-            function updateScheduleState() {
-                const now = new Date();
-                const currentMinutes = now.getHours() * 60 + now.getMinutes();
-
-                const sortedRows = [...rows].map((r, index) => {
-                    const parts = r.time.split(':');
-                    const hr = parseInt(parts[0]) || 0;
-                    const min = parseInt(parts[1]) || 0;
-                    return { ...r, index, minutes: (hr * 60) + min };
-                }).sort((a, b) => a.minutes - b.minutes);
-
-                let activeIdx = -1;
-                let nextSession = null;
-
-                for (let i = 0; i < sortedRows.length; i++) {
-                    const row = sortedRows[i];
-                    const nextRow = sortedRows[i + 1];
-                    const durationMins = nextRow ? (nextRow.minutes - row.minutes) : 90; 
-
-                    if (currentMinutes >= row.minutes && currentMinutes < (row.minutes + durationMins)) {
-                        activeIdx = row.index;
-                    }
-                    if (row.minutes > currentMinutes && !nextSession) {
-                        nextSession = row;
-                    }
-                }
-
-                rowsContainer.innerHTML = '';
-                rows.forEach((row, i) => {
-                    const isActive = i === activeIdx;
-                    const rowEl = document.createElement('div');
-                    rowEl.className = `flex items-center space-x-2 p-2.5 rounded-xl border-l-4 ${row.color} transition-all shadow-sm ${isActive ? 'ring-2 ring-indigo-500 scale-[1.01] shadow-md' : 'opacity-60'}`;
-                    
-                    if(State.theme === 'dark') rowEl.classList.add('text-white', 'mix-blend-lighten');
-
-                    rowEl.innerHTML = `
-                        <div class="flex items-center space-x-2 flex-grow">
-                            ${isActive ? '<span class="flex h-2.5 w-2.5 relative"><span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span><span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500"></span></span>' : ''}
-                            <input type="text" class="font-black text-xs bg-transparent w-14 border-b border-transparent focus:border-current" value="${row.time}">
-                            <input type="text" class="text-xs font-bold bg-transparent flex-grow border-b border-transparent focus:border-current" value="${row.task}">
+            function renderLayout() {
+                container.innerHTML = `
+                    <div class="flex flex-col h-full w-full justify-between">
+                        <!-- Navigation tabs -->
+                        <div class="flex items-center justify-between border-b border-black/5 pb-2 mb-2">
+                            <span class="text-xs font-black uppercase tracking-widest text-indigo-600">Daily Class Agenda</span>
+                            <div class="flex space-x-1">
+                                <button id="btn-tab-live-${widget.id}" class="px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase transition-all ${!isEditMode ? 'bg-indigo-600 text-white shadow-sm' : 'hover:bg-black/5'}" title="Switch to live Presentation">Live Present</button>
+                                <button id="btn-tab-edit-${widget.id}" class="px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase transition-all ${isEditMode ? 'bg-indigo-600 text-white shadow-sm' : 'hover:bg-black/5'}" title="Configure times & template items">Settings</button>
+                            </div>
                         </div>
-                        <button class="del-btn widget-controls p-1 hover:bg-red-500 hover:text-white rounded-lg transition-all opacity-50 hover:opacity-100"><i data-lucide="trash-2" class="w-3 h-3"></i></button>
-                    `;
 
-                    const inputs = rowEl.querySelectorAll('input');
-                    inputs[0].onchange = (e) => { rows[i].time = e.target.value; widget.data.rows = rows; updateScheduleState(); };
-                    inputs[1].onchange = (e) => { rows[i].task = e.target.value; widget.data.rows = rows; updateScheduleState(); };
-                    rowEl.querySelector('.del-btn').onclick = () => { rows.splice(i, 1); widget.data.rows = rows; updateScheduleState(); };
-                    
-                    rowsContainer.appendChild(rowEl);
-                });
+                        <!-- Main Screen Content Area -->
+                        <div id="timetable-content-${widget.id}" class="flex-grow overflow-y-auto pr-1 mb-2"></div>
+                    </div>
+                `;
 
-                if (nextSession) {
-                    const diff = nextSession.minutes - currentMinutes;
-                    const hrs = Math.floor(diff / 60);
-                    const mins = diff % 60;
-                    countdownEl.innerText = `${hrs > 0 ? hrs + 'h ' : ''}${mins}m until next class`;
-                } else if (sortedRows.length > 0 && currentMinutes > sortedRows[sortedRows.length - 1].minutes + 90) {
-                    countdownEl.innerText = "Schedule Complete";
-                } else {
-                    countdownEl.innerText = "No classes ahead";
-                }
+                container.querySelector(`#btn-tab-live-${widget.id}`).onclick = () => { isEditMode = false; widget.data.isEditMode = false; renderMain(); };
+                container.querySelector(`#btn-tab-edit-${widget.id}`).onclick = () => { isEditMode = true; widget.data.isEditMode = true; renderMain(); };
 
-                lucide.createIcons({ root: rowsContainer });
+                renderMain();
             }
 
-            container.querySelector(`#add-${widget.id}`).onclick = () => {
-                const now = new Date();
-                const newTime = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
-                rows.push({ time: newTime, task: 'New Session', color: colors[rows.length % colors.length] });
-                widget.data.rows = rows;
-                updateScheduleState();
-            };
+            function renderMain() {
+                const subContent = container.querySelector(`#timetable-content-${widget.id}`);
+                
+                if (isEditMode) {
+                    // CONFIGURATION VIEW
+                    subContent.innerHTML = `
+                        <div class="space-y-4">
+                            <!-- Class Periods setup -->
+                            <div>
+                                <h4 class="text-[10px] font-black uppercase tracking-wider text-indigo-500 mb-2 flex justify-between items-center">
+                                    <span>Class Period Start Times</span>
+                                    <button id="add-period-${widget.id}" class="p-1 hover:bg-black/5 rounded text-indigo-600"><i data-lucide="plus" class="w-3.5 h-3.5"></i></button>
+                                </h4>
+                                <div id="period-list-${widget.id}" class="space-y-1.5 max-h-[140px] overflow-y-auto pr-1"></div>
+                            </div>
 
-            updateScheduleState();
-            const schedulerInterval = setInterval(updateScheduleState, 15000); 
+                            <!-- Class Agenda setup -->
+                            <div>
+                                <h4 class="text-[10px] font-black uppercase tracking-wider text-indigo-500 mb-2 flex justify-between items-center">
+                                    <span>Template Period Agenda</span>
+                                    <button id="add-agenda-${widget.id}" class="p-1 hover:bg-black/5 rounded text-indigo-600"><i data-lucide="plus" class="w-3.5 h-3.5"></i></button>
+                                </h4>
+                                <div id="agenda-list-${widget.id}" class="space-y-1.5 max-h-[160px] overflow-y-auto pr-1"></div>
+                            </div>
+                        </div>
+                    `;
+
+                    // Populating Periods template inputs
+                    const periodsListContainer = subContent.querySelector(`#period-list-${widget.id}`);
+                    periods.forEach((p, idx) => {
+                        const row = document.createElement('div');
+                        row.className = "flex items-center space-x-2 bg-black/[0.02] p-1.5 rounded-lg";
+                        row.innerHTML = `
+                            <input type="text" class="period-name bg-transparent font-bold text-xs w-24 border-b border-transparent focus:border-indigo-400" value="${p.name}">
+                            <input type="text" class="period-time bg-transparent text-xs w-16 border-b border-transparent focus:border-indigo-400" placeholder="HH:MM" value="${p.time}">
+                            <button class="del-period p-1 hover:text-red-500 transition-colors" data-idx="${idx}"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
+                        `;
+
+                        row.querySelector('.period-name').onchange = (e) => { periods[idx].name = e.target.value; widget.data.periods = periods; };
+                        row.querySelector('.period-time').onchange = (e) => { periods[idx].time = e.target.value; widget.data.periods = periods; };
+                        row.querySelector('.del-period').onclick = () => { periods.splice(idx, 1); widget.data.periods = periods; renderMain(); };
+                        periodsListContainer.appendChild(row);
+                    });
+
+                    // Populating Agenda Items template inputs
+                    const agendaListContainer = subContent.querySelector(`#agenda-list-${widget.id}`);
+                    agenda.forEach((a, idx) => {
+                        const row = document.createElement('div');
+                        row.className = "flex items-center space-x-2 bg-black/[0.02] p-1.5 rounded-lg border-l-4 " + a.color.split(' ')[0];
+                        row.innerHTML = `
+                            <div class="flex items-center space-x-1 text-xs">
+                                <span class="opacity-40 font-black text-[10px]">+</span>
+                                <input type="number" class="agenda-offset bg-transparent font-black w-8 text-center" min="0" max="180" value="${a.offset}">
+                                <span class="opacity-40">m</span>
+                            </div>
+                            <input type="text" class="agenda-task bg-transparent text-xs font-semibold flex-grow border-b border-transparent focus:border-indigo-400" value="${a.task}">
+                            <button class="del-agenda p-1 hover:text-red-500 transition-colors" data-idx="${idx}"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
+                        `;
+
+                        row.querySelector('.agenda-offset').onchange = (e) => { agenda[idx].offset = parseInt(e.target.value) || 0; widget.data.agenda = agenda; };
+                        row.querySelector('.agenda-task').onchange = (e) => { agenda[idx].task = e.target.value; widget.data.agenda = agenda; };
+                        row.querySelector('.del-agenda').onclick = () => { agenda.splice(idx, 1); widget.data.agenda = agenda; renderMain(); };
+                        agendaListContainer.appendChild(row);
+                    });
+
+                    // Setting Add operations
+                    subContent.querySelector(`#add-period-${widget.id}`).onclick = () => {
+                        const nextId = 'p-' + generateId();
+                        periods.push({ id: nextId, name: 'Period ' + (periods.length + 1), time: '12:00' });
+                        widget.data.periods = periods;
+                        renderMain();
+                    };
+
+                    subContent.querySelector(`#add-agenda-${widget.id}`).onclick = () => {
+                        const nextId = 'a-' + generateId();
+                        const nextOffset = agenda.length > 0 ? (agenda[agenda.length - 1].offset + 15) : 0;
+                        agenda.push({ id: nextId, offset: nextOffset, task: 'New Activity', color: colors[agenda.length % colors.length] });
+                        widget.data.agenda = agenda;
+                        renderMain();
+                    };
+
+                    lucide.createIcons({ root: subContent });
+
+                } else {
+                    // PRESENTATION VIEW - Dynamically shifts and repeats relative offsets based on active Class start
+                    subContent.innerHTML = `
+                        <div class="space-y-3">
+                            <div class="bg-indigo-600/5 border border-indigo-500/20 p-3 rounded-2xl flex flex-col items-center text-center">
+                                <div id="live-period-title-${widget.id}" class="text-xs font-black uppercase tracking-wider text-indigo-600">Checking Active Class...</div>
+                                <div id="live-status-desc-${widget.id}" class="text-sm font-semibold opacity-70 mt-1">Starting soon...</div>
+                            </div>
+                            
+                            <div id="live-agenda-list-${widget.id}" class="space-y-2"></div>
+                        </div>
+                    `;
+
+                    updateLiveState();
+                }
+            }
+
+            // Calculations parsing active intervals & shifting agenda dynamically
+            function updateLiveState() {
+                if (isEditMode) return;
+                
+                const liveList = container.querySelector(`#live-agenda-list-${widget.id}`);
+                const titleEl = container.querySelector(`#live-period-title-${widget.id}`);
+                const descEl = container.querySelector(`#live-status-desc-${widget.id}`);
+                if (!liveList || !titleEl || !descEl) return;
+
+                const now = new Date();
+                const currentMins = now.getHours() * 60 + now.getMinutes();
+
+                // Sort Class Period Start Times chronologically
+                const sortedPeriods = [...periods].map(p => {
+                    const parts = p.time.split(':');
+                    const hr = parseInt(parts[0]) || 0;
+                    const min = parseInt(parts[1]) || 0;
+                    return { ...p, minutes: (hr * 60) + min };
+                }).sort((a, b) => a.minutes - b.minutes);
+
+                // Sort Lesson agenda chronologically by offset
+                const sortedAgenda = [...agenda].sort((a, b) => a.offset - b.offset);
+
+                let activePeriod = null;
+                let nextPeriod = null;
+
+                // Detect current Period
+                for (let i = 0; i < sortedPeriods.length; i++) {
+                    const p = sortedPeriods[i];
+                    if (currentMins >= p.minutes) {
+                        activePeriod = p;
+                    } else if (!nextPeriod) {
+                        nextPeriod = p;
+                    }
+                }
+
+                // Default active duration window context: 60 mins unless bound by the next period starting
+                let periodDuration = 60;
+                if (activePeriod && nextPeriod) {
+                    periodDuration = nextPeriod.minutes - activePeriod.minutes;
+                }
+
+                if (!activePeriod) {
+                    // Passing Period/Before school mode
+                    titleEl.innerText = "No Active Period";
+                    if (nextPeriod) {
+                        const diff = nextPeriod.minutes - currentMins;
+                        titleEl.className = "text-xs font-black uppercase tracking-wider text-indigo-500";
+                        descEl.innerHTML = `<span class="text-indigo-600 font-bold">${nextPeriod.name}</span> starts in <span class="text-indigo-600 font-bold">${diff} mins</span>`;
+                    } else {
+                        descEl.innerText = "School Hours Complete";
+                    }
+
+                    // Render plain agenda guide
+                    liveList.innerHTML = sortedAgenda.map(item => `
+                        <div class="flex justify-between items-center p-2.5 rounded-xl border border-black/5 opacity-50 text-xs font-bold bg-white/20">
+                            <span>+${item.offset}m: ${item.task}</span>
+                        </div>
+                    `).join('');
+
+                } else {
+                    // Active class found! Shifting offsets relative to Period starting baseline
+                    const elapsed = currentMins - activePeriod.minutes;
+                    titleEl.innerText = `${activePeriod.name} (Started ${activePeriod.time})`;
+
+                    // Locate currently running task
+                    let activeAgendaIdx = -1;
+                    for (let j = 0; j < sortedAgenda.length; j++) {
+                        if (elapsed >= sortedAgenda[j].offset) {
+                            activeAgendaIdx = j;
+                        }
+                    }
+
+                    // Display countdown status
+                    if (activeAgendaIdx !== -1) {
+                        const activeItem = sortedAgenda[activeAgendaIdx];
+                        const nextItem = sortedAgenda[activeAgendaIdx + 1];
+                        
+                        let itemRemaining = 0;
+                        if (nextItem) {
+                            itemRemaining = nextItem.offset - elapsed;
+                            descEl.innerHTML = `<span class="font-bold text-indigo-600">${itemRemaining}m</span> left in <span class="font-bold text-indigo-600">${activeItem.task}</span>`;
+                        } else {
+                            // final task ends when period finishes
+                            itemRemaining = periodDuration - elapsed;
+                            if (itemRemaining > 0) {
+                                descEl.innerHTML = `<span class="font-bold text-indigo-600">${itemRemaining}m</span> left until next Period transition`;
+                            } else {
+                                descEl.innerText = "Period Agenda Concluded";
+                            }
+                        }
+                    } else {
+                        descEl.innerText = "Beginning class agenda...";
+                    }
+
+                    // Populating shifted agenda
+                    liveList.innerHTML = '';
+                    sortedAgenda.forEach((item, idx) => {
+                        const absoluteMins = activePeriod.minutes + item.offset;
+                        const itemHrs = Math.floor(absoluteMins / 60) % 24;
+                        const itemMins = absoluteMins % 60;
+                        const absoluteTimeString = `${String(itemHrs).padStart(2, '0')}:${String(itemMins).padStart(2, '0')}`;
+
+                        const isActive = idx === activeAgendaIdx;
+                        const isPast = idx < activeAgendaIdx;
+
+                        const row = document.createElement('div');
+                        row.className = `flex justify-between items-center p-2.5 rounded-xl border-l-4 ${item.color} transition-all shadow-sm ${
+                            isActive ? 'ring-2 ring-indigo-500 scale-[1.01] opacity-100' : isPast ? 'opacity-30' : 'opacity-70'
+                        }`;
+
+                        if (State.theme === 'dark') {
+                            row.classList.add('text-white', 'mix-blend-lighten');
+                        }
+
+                        row.innerHTML = `
+                            <div class="flex items-center space-x-2">
+                                ${isActive ? '<span class="flex h-2 w-2 relative"><span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span><span class="relative inline-flex rounded-full h-2 w-2 bg-indigo-500"></span></span>' : ''}
+                                <span class="font-bold text-xs">${absoluteTimeString}</span>
+                                <span class="text-xs font-semibold">${item.task}</span>
+                            </div>
+                            <span class="text-[10px] opacity-40 font-black">+${item.offset}m</span>
+                        `;
+
+                        liveList.appendChild(row);
+                    });
+                }
+            }
+
+            renderLayout();
             
-            return () => clearInterval(schedulerInterval);
+            // Constantly polls current minute boundaries in Present Mode
+            const subTimer = setInterval(updateLiveState, 10000); 
+            return () => clearInterval(subTimer);
         }
 
         // --- 5. WORK SYMBOLS ---
