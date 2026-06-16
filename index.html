@@ -5,6 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Modern Classroom Board</title>
     
+    <!-- Favicon -->
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>👨‍🏫</text></svg>">
+
+    <!-- PWA Manifest Link -->
+    <link rel="manifest" href='data:application/manifest+json,{"name":"Modern Classroom Board","short_name":"ClassroomBoard","start_url":".","display":"standalone","background_color":"#0f172a","theme_color":"#4f46e5","icons":[{"src":"https://cdn-icons-png.flaticon.com/512/482/482155.png","sizes":"512x512","type":"image/png"}]}'>
+
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     
@@ -44,6 +50,35 @@
         .widget-anim {
             animation: popIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
         }
+
+        /* Responsive Proportional Scale Styles */
+        .scale-text { font-size: calc(1rem * var(--scale, 1)) !important; }
+        .scale-text-xs { font-size: calc(0.75rem * var(--scale, 1)) !important; }
+        .scale-text-sm { font-size: calc(0.875rem * var(--scale, 1)) !important; }
+        .scale-text-lg { font-size: calc(1.125rem * var(--scale, 1)) !important; }
+        .scale-text-xl { font-size: calc(1.25rem * var(--scale, 1)) !important; }
+        .scale-text-2xl { font-size: calc(1.5rem * var(--scale, 1)) !important; }
+        .scale-text-3xl { font-size: calc(1.875rem * var(--scale, 1)) !important; }
+        .scale-text-4xl { font-size: calc(2.25rem * var(--scale, 1)) !important; }
+        .scale-text-5xl { font-size: calc(3rem * var(--scale, 1)) !important; }
+        .scale-text-6xl { font-size: calc(3.75rem * var(--scale, 1)) !important; }
+        
+        .scale-p-5 { padding: calc(1.25rem * var(--scale, 1)) !important; }
+        .scale-p-3 { padding: calc(0.75rem * var(--scale, 1)) !important; }
+        .scale-p-2 { padding: calc(0.5rem * var(--scale, 1)) !important; }
+        .scale-p-1 { padding: calc(0.25rem * var(--scale, 1)) !important; }
+        
+        .scale-gap-2 { gap: calc(0.5rem * var(--scale, 1)) !important; }
+        .scale-gap-3 { gap: calc(0.75rem * var(--scale, 1)) !important; }
+        .scale-gap-4 { gap: calc(1rem * var(--scale, 1)) !important; }
+        
+        .scale-w-16 { width: calc(4rem * var(--scale, 1)) !important; }
+        .scale-w-14 { width: calc(3.5rem * var(--scale, 1)) !important; }
+        .scale-w-12 { width: calc(3rem * var(--scale, 1)) !important; }
+        .scale-w-10 { width: calc(2.5rem * var(--scale, 1)) !important; }
+
+        .scale-h-10 { height: calc(2.5rem * var(--scale, 1)) !important; }
+        .scale-h-8 { height: calc(2rem * var(--scale, 1)) !important; }
 
         /* Glassmorphism Themes */
         .theme-glass {
@@ -135,7 +170,7 @@
         }
     </style>
 </head>
-<body id="app-body" class="bg-slate-900 transition-colors duration-700 bg-cover bg-center bg-no-repeat bg-fixed w-screen h-screen overflow-hidden select-none">
+<body id="app-body" class="bg-slate-900 transition-colors duration-700 bg-cover bg-center bg-no-repeat bg-fixed w-screen h-screen overflow-hidden select-none animate-fade-in">
 
     <!-- Background overlays -->
     <div id="bg-overlay" class="absolute inset-0 bg-black/25 pointer-events-none z-0 transition-opacity duration-500"></div>
@@ -240,7 +275,7 @@
 
         <button id="global-undo" class="text-zinc-400 hover:text-white px-2 py-1 text-xs font-bold uppercase transition-colors flex-shrink-0">Undo</button>
         <button id="global-clear" class="text-red-400 hover:text-red-300 px-2 py-1 text-xs font-bold uppercase transition-colors flex-shrink-0">Clear</button>
-        <div class="w-px h-6 bg-zinc-700"></div>
+        <div class="w-px h-6 bg-zinc-700 mx-1"></div>
         <button id="global-exit" class="bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded-lg text-xs font-bold uppercase transition-all flex-shrink-0">Done</button>
     </div>
 
@@ -280,6 +315,36 @@
             <p class="text-sm font-semibold text-white/80">Select a tool from the dock below to get started.</p>
         </div>
     </div>
+
+    <style>
+        .dock-btn {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 0.5rem;
+            border-radius: 1.5rem;
+            transition: all 0.2s;
+            min-width: 72px;
+        }
+        .dock-btn:active { transform: scale(0.95); }
+        .dock-btn .icon-wrap {
+            padding: 0.75rem;
+            border-radius: 1.2rem;
+            margin-bottom: 0.35rem;
+            transition: transform 0.3s;
+        }
+        .dock-btn:hover .icon-wrap { transform: translateY(-4px) scale(1.05); }
+        .dock-btn span {
+            font-size: 0.65rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: #9ca3af;
+            transition: color 0.2s;
+        }
+        .dock-btn:hover span { color: #ffffff; }
+    </style>
 
     <script>
         // ==========================================
@@ -350,8 +415,16 @@
         }
 
         // ==========================================
-        // URL ENCODING & SAVING (FIXED: Duplicates and Serialization bug)
+        // URL ENCODING & SAVING (UNICODE COMPLIANT)
         // ==========================================
+        function encodeState(state) {
+            return btoa(unescape(encodeURIComponent(JSON.stringify(state))));
+        }
+
+        function decodeState(hash) {
+            return JSON.parse(decodeURIComponent(escape(atob(hash))));
+        }
+
         function loadStateFromURL() {
             const hash = window.location.hash.substring(1);
             if (!hash) {
@@ -359,7 +432,7 @@
                 return;
             }
             try {
-                const saved = JSON.parse(decodeURIComponent(atob(hash)));
+                const saved = decodeState(hash);
                 if (saved.theme) setTheme(saved.theme);
                 if (saved.background) applyBackground(saved.background);
                 if (saved.globalPaths) {
@@ -367,15 +440,15 @@
                     redrawGlobal();
                 }
                 if (saved.widgets && Array.isArray(saved.widgets)) {
-                    State.widgets = []; // Clear array reference
-                    workspace.innerHTML = ''; // Wipe DOM
+                    State.widgets = []; 
+                    workspace.innerHTML = ''; 
                     saved.widgets.forEach(w => addWidgetToDOM(w, true));
                 }
             } catch (e) { console.error("URL Load failed", e); }
         }
 
         document.getElementById('btn-save').addEventListener('click', () => {
-            const encoded = btoa(encodeURIComponent(JSON.stringify(State)));
+            const encoded = encodeState(State);
             const url = `${window.location.origin}${window.location.pathname}#${encoded}`;
             try {
                 const tempInput = document.createElement("input");
@@ -473,8 +546,11 @@
                 }
             });
             document.querySelectorAll('.widget-wrapper').forEach(w => {
-                // Keep classes but update template styles cleanly
+                const isCollapsed = w.style.height === '40px';
                 w.className = `widget-wrapper pointer-events-auto absolute rounded-[1.5rem] flex flex-col overflow-hidden transition-shadow duration-300 theme-${theme} widget-anim`;
+                if (isCollapsed) {
+                    w.style.height = '40px';
+                }
             });
         }
 
@@ -567,7 +643,6 @@
             lucide.createIcons({ root: el });
             checkEmptyState();
 
-            // Set up state collapse parameters
             if (widget.data.collapsed) {
                 content.style.display = 'none';
                 resizer.style.display = 'none';
@@ -576,7 +651,6 @@
                 lucide.createIcons({ root: header });
             }
 
-            // Collapse Button Handler
             header.querySelector('.minimize-btn').onclick = (e) => {
                 e.stopPropagation();
                 widget.data.collapsed = !widget.data.collapsed;
@@ -669,7 +743,6 @@
                 document.removeEventListener('pointerup', onPointerUp);
             };
 
-            // Call initial scale to resize content on construction
             setTimeout(() => { if (widget.onResize) widget.onResize(); }, 50);
         }
 
@@ -687,7 +760,7 @@
             }
         }
 
-        // --- 1. CLOCK (WITH RESIZING AUTO-SCALING) ---
+        // --- 1. CLOCK ---
         function renderClock(widget, container) {
             widget.data.isDigital = widget.data.isDigital !== false;
             
@@ -754,7 +827,6 @@
                 if (!widget.data.isDigital) drawAnalog(now);
             }
 
-            // Dynamic Font/Canvas scaling on container resize
             widget.onResize = () => {
                 const minDim = Math.min(widget.w, widget.h);
                 const textScale = Math.max(16, minDim * 0.15);
@@ -784,7 +856,7 @@
             return () => clearInterval(interval); 
         }
 
-        // --- 2. TIMER (WITH INPUT & GRAPHICAL SCALING) ---
+        // --- 2. TIMER ---
         function renderTimer(widget, container) {
             let total = widget.data.total || 300;
             let left = widget.data.left !== undefined ? widget.data.left : 300;
@@ -864,7 +936,6 @@
                 }
             }
 
-            // Multi-dimension responsive resizing scaling calculations
             widget.onResize = () => {
                 const boxDim = Math.max(90, Math.min(widget.w - 50, widget.h - 110));
                 svgWrap.style.width = `${boxDim}px`;
@@ -944,7 +1015,7 @@
             return () => clearInterval(interval);
         }
 
-        // --- 3. STOPWATCH (WITH COMPACT AUTO-SCALING CONTROLS) ---
+        // --- 3. STOPWATCH ---
         function renderStopwatch(widget, container) {
             let ms = widget.data.ms || 0;
             let isRunning = false;
@@ -958,7 +1029,7 @@
                         </div>
                         <p id="edit-hint-${widget.id}" class="text-[8px] font-bold tracking-widest text-zinc-400 uppercase mt-0.5">Click to edit starting time</p>
                     </div>
-                    <div id="laps-${widget.id}" class="flex-grow my-1 overflow-y-auto space-y-1 pr-1 text-xs"></div>
+                    <div id="laps-${widget.id}" class="flex-grow my-1.5 overflow-y-auto space-y-1 pr-1 text-xs"></div>
                     <div class="widget-controls flex space-x-2 mt-auto flex-shrink-0">
                         <button id="play-${widget.id}" class="flex-grow py-2 rounded-xl font-bold text-white transition-all active:scale-95 shadow-md bg-purple-600 hover:bg-purple-700 text-xs">Start</button>
                         <button id="lap-${widget.id}" class="px-3 py-2 rounded-xl bg-purple-500/20 text-purple-600 hover:bg-purple-500/30 font-bold transition-all active:scale-95 text-xs hidden">Lap</button>
@@ -995,11 +1066,11 @@
                 } else {
                     hint.style.visibility = "visible";
                     interactiveContainer.innerHTML = `
-                        <input type="number" id="inp-m-${widget.id}" min="0" max="99" class="bg-black/5 rounded text-center font-black focus:bg-purple-500/10 focus:ring-1 focus:ring-purple-400" value="${String(m).padStart(2, '0')}" style="width: 1.25em;">
+                        <input type="number" id="inp-m-${widget.id}" min="0" max="99" class="bg-black/5 rounded text-center font-black focus:bg-purple-500/10 focus:ring-1 focus:ring-purple-400" value="${String(m).padStart(2, '0')} "style="width: 1.25em;">
                         <span>:</span>
-                        <input type="number" id="inp-s-${widget.id}" min="0" max="59" class="bg-black/5 rounded text-center font-black focus:bg-purple-500/10 focus:ring-1 focus:ring-purple-400" value="${String(s).padStart(2, '0')}" style="width: 1.1em;">
+                        <input type="number" id="inp-s-${widget.id}" min="0" max="59" class="bg-black/5 rounded text-center font-black focus:bg-purple-500/10 focus:ring-1 focus:ring-purple-400" value="${String(s).padStart(2, '0')} "style="width: 1.1em;">
                         <span>.</span>
-                        <input type="number" id="inp-c-${widget.id}" min="0" max="99" class="bg-black/5 rounded text-center font-black focus:bg-purple-500/10 focus:ring-1 focus:ring-purple-400" value="${String(centi).padStart(2, '0')}" style="width: 1.1em;">
+                        <input type="number" id="inp-c-${widget.id}" min="0" max="99" class="bg-black/5 rounded text-center font-black focus:bg-purple-500/10 focus:ring-1 focus:ring-purple-400" value="${String(centi).padStart(2, '0')} "style="width: 1.1em;">
                     `;
 
                     const inputs = ['m', 's', 'c'].map(char => interactiveContainer.querySelector(`#inp-${char}-${widget.id}`));
@@ -1019,7 +1090,6 @@
                 widget.data.ms = ms;
             }
 
-            // Responsive widget sizing rules
             widget.onResize = () => {
                 const textScale = Math.max(16, Math.min(widget.w * 0.1, widget.h * 0.16));
                 interactiveContainer.style.fontSize = `${textScale}px`;
@@ -1088,7 +1158,7 @@
             return () => clearInterval(interval);
         }
 
-        // --- 4. TIMETABLE / SCHEDULE (WITH ROW & TEXT AUTO-SCALING) ---
+        // --- 4. TIMETABLE / SCHEDULE (FULLY SCALABLE VECTOR SIZING ENHANCED) ---
         function renderTimetable(widget, container) {
             let periods = widget.data.periods || [
                 { id: 'p1', name: 'Period 1', time: '08:30' },
@@ -1115,11 +1185,12 @@
             let isEditMode = widget.data.isEditMode !== false;
 
             function renderLayout() {
+                // Apply layout wrappers that map variable scaling classes
                 container.innerHTML = `
-                    <div class="flex flex-col h-full w-full justify-between">
+                    <div class="flex flex-col h-full w-full justify-between scale-p-3 scale-gap-2">
                         <!-- Navigation tabs -->
                         <div class="flex items-center justify-between border-b border-black/5 pb-1 mb-1 flex-shrink-0">
-                            <span id="tt-title-${widget.id}" class="text-[9px] font-black uppercase tracking-widest text-indigo-600">Daily Class Agenda</span>
+                            <span id="tt-title-${widget.id}" class="scale-text-xs font-black uppercase tracking-widest text-indigo-600">Daily Class Agenda</span>
                             <div class="flex space-x-1">
                                 <button id="btn-tab-live-${widget.id}" class="px-2 py-0.5 rounded-lg text-[8px] font-bold uppercase transition-all ${!isEditMode ? 'bg-indigo-600 text-white shadow-sm' : 'hover:bg-black/5'}" title="Switch to live Presentation">Live Present</button>
                                 <button id="btn-tab-edit-${widget.id}" class="px-2 py-0.5 rounded-lg text-[8px] font-bold uppercase transition-all ${isEditMode ? 'bg-indigo-600 text-white shadow-sm' : 'hover:bg-black/5'}" title="Configure times & template items">Settings</button>
@@ -1127,7 +1198,7 @@
                         </div>
 
                         <!-- Main Screen Content Area -->
-                        <div id="timetable-content-${widget.id}" class="flex-grow overflow-y-auto pr-1 mb-1"></div>
+                        <div id="timetable-content-${widget.id}" class="flex-grow overflow-y-auto pr-1 mb-1 scale-gap-2"></div>
                     </div>
                 `;
 
@@ -1142,21 +1213,21 @@
                 
                 if (isEditMode) {
                     subContent.innerHTML = `
-                        <div class="space-y-3">
+                        <div class="scale-gap-3 flex flex-col h-full">
                             <div>
-                                <h4 class="text-[9px] font-black uppercase tracking-wider text-indigo-500 mb-1 flex justify-between items-center">
+                                <h4 class="scale-text-xs font-black uppercase tracking-wider text-indigo-500 mb-1 flex justify-between items-center">
                                     <span>Class Period Start Times</span>
-                                    <button id="add-period-${widget.id}" class="p-0.5 hover:bg-black/5 rounded text-indigo-600"><i data-lucide="plus" class="w-3 h-3"></i></button>
+                                    <button id="add-period-${widget.id}" class="p-0.5 hover:bg-black/5 rounded text-indigo-600"><i data-lucide="plus" class="w-3.5 h-3.5"></i></button>
                                 </h4>
-                                <div id="period-list-${widget.id}" class="space-y-1 max-h-[100px] overflow-y-auto pr-1"></div>
+                                <div id="period-list-${widget.id}" class="scale-gap-1 max-h-[120px] overflow-y-auto pr-1 flex flex-col"></div>
                             </div>
 
-                            <div>
-                                <h4 class="text-[9px] font-black uppercase tracking-wider text-indigo-500 mb-1 flex justify-between items-center">
+                            <div class="mt-2">
+                                <h4 class="scale-text-xs font-black uppercase tracking-wider text-indigo-500 mb-1 flex justify-between items-center">
                                     <span>Template Period Agenda</span>
-                                    <button id="add-agenda-${widget.id}" class="p-0.5 hover:bg-black/5 rounded text-indigo-600"><i data-lucide="plus" class="w-3 h-3"></i></button>
+                                    <button id="add-agenda-${widget.id}" class="p-0.5 hover:bg-black/5 rounded text-indigo-600"><i data-lucide="plus" class="w-3.5 h-3.5"></i></button>
                                 </h4>
-                                <div id="agenda-list-${widget.id}" class="space-y-1 max-h-[110px] overflow-y-auto pr-1"></div>
+                                <div id="agenda-list-${widget.id}" class="scale-gap-1 max-h-[140px] overflow-y-auto pr-1 flex flex-col"></div>
                             </div>
                         </div>
                     `;
@@ -1164,10 +1235,10 @@
                     const periodsListContainer = subContent.querySelector(`#period-list-${widget.id}`);
                     periods.forEach((p, idx) => {
                         const row = document.createElement('div');
-                        row.className = "flex items-center space-x-1.5 bg-black/[0.02] p-1 rounded-lg text-xs font-semibold";
+                        row.className = "flex items-center justify-between bg-black/[0.02] scale-p-1 rounded-lg scale-text-sm font-semibold";
                         row.innerHTML = `
-                            <input type="text" class="period-name bg-transparent font-bold w-20 border-b border-transparent focus:border-indigo-400" value="${p.name}">
-                            <input type="text" class="period-time bg-transparent w-12 border-b border-transparent focus:border-indigo-400 text-center" placeholder="HH:MM" value="${p.time}">
+                            <input type="text" class="period-name bg-transparent font-bold scale-w-16 border-b border-transparent focus:border-indigo-400" value="${p.name}">
+                            <input type="text" class="period-time bg-transparent scale-w-12 border-b border-transparent focus:border-indigo-400 text-center" placeholder="HH:MM" value="${p.time}">
                             <button class="del-period p-0.5 hover:text-red-500 transition-colors" data-idx="${idx}"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
                         `;
 
@@ -1180,14 +1251,14 @@
                     const agendaListContainer = subContent.querySelector(`#agenda-list-${widget.id}`);
                     agenda.forEach((a, idx) => {
                         const row = document.createElement('div');
-                        row.className = "flex items-center space-x-1.5 bg-black/[0.02] p-1 rounded-lg border-l-4 " + a.color.split(' ')[0] + " text-xs font-semibold";
+                        row.className = "flex items-center justify-between bg-black/[0.02] scale-p-1 rounded-lg border-l-4 " + a.color.split(' ')[0] + " scale-text-sm font-semibold";
                         row.innerHTML = `
                             <div class="flex items-center space-x-0.5">
                                 <span class="opacity-40 font-black text-[9px]">+</span>
-                                <input type="number" class="agenda-offset bg-transparent font-black w-6 text-center" min="0" max="180" value="${a.offset}">
+                                <input type="number" class="agenda-offset bg-transparent font-black scale-w-10 text-center" min="0" max="180" value="${a.offset}">
                                 <span class="opacity-40 text-[10px]">m</span>
                             </div>
-                            <input type="text" class="agenda-task bg-transparent flex-grow border-b border-transparent focus:border-indigo-400" value="${a.task}">
+                            <input type="text" class="agenda-task bg-transparent flex-grow border-b border-transparent focus:border-indigo-400 px-1 ml-1" value="${a.task}">
                             <button class="del-agenda p-0.5 hover:text-red-500 transition-colors" data-idx="${idx}"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
                         `;
 
@@ -1218,13 +1289,13 @@
 
                 } else {
                     subContent.innerHTML = `
-                        <div class="space-y-2">
-                            <div class="bg-indigo-600/5 border border-indigo-500/20 p-2 rounded-xl flex flex-col items-center text-center">
-                                <div id="live-period-title-${widget.id}" class="text-[9px] font-black uppercase tracking-wider text-indigo-600">Checking Active Class...</div>
-                                <div id="live-status-desc-${widget.id}" class="text-xs font-semibold opacity-70 mt-0.5">Starting soon...</div>
+                        <div class="scale-gap-2 flex flex-col h-full justify-between">
+                            <div class="bg-indigo-600/5 border border-indigo-500/20 scale-p-2 rounded-xl flex flex-col items-center text-center">
+                                <div id="live-period-title-${widget.id}" class="scale-text-xs font-black uppercase tracking-wider text-indigo-600">Checking Active Class...</div>
+                                <div id="live-status-desc-${widget.id}" class="scale-text-sm font-semibold opacity-70 mt-0.5">Starting soon...</div>
                             </div>
                             
-                            <div id="live-agenda-list-${widget.id}" class="space-y-1.5"></div>
+                            <div id="live-agenda-list-${widget.id}" class="scale-gap-2 flex flex-col"></div>
                         </div>
                     `;
 
@@ -1279,7 +1350,7 @@
                     }
 
                     liveList.innerHTML = sortedAgenda.map(item => `
-                        <div class="flex justify-between items-center p-2 rounded-xl border border-black/5 opacity-50 text-[10px] font-bold bg-white/20">
+                        <div class="flex justify-between items-center scale-p-2 rounded-xl border border-black/5 opacity-50 scale-text-xs font-bold bg-white/20">
                             <span>+${item.offset}m: ${item.task}</span>
                         </div>
                     `).join('');
@@ -1326,7 +1397,7 @@
                         const isPast = idx < activeAgendaIdx;
 
                         const row = document.createElement('div');
-                        row.className = `flex justify-between items-center p-2 rounded-xl border-l-4 ${item.color} transition-all shadow-sm ${
+                        row.className = `flex justify-between items-center scale-p-2 rounded-xl border-l-4 ${item.color} transition-all shadow-sm ${
                             isActive ? 'ring-2 ring-indigo-500 scale-[1.01] opacity-100' : isPast ? 'opacity-30' : 'opacity-70'
                         }`;
 
@@ -1337,10 +1408,10 @@
                         row.innerHTML = `
                             <div class="flex items-center space-x-2">
                                 ${isActive ? '<span class="flex h-1.5 w-1.5 relative"><span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span><span class="relative inline-flex rounded-full h-1.5 w-1.5 bg-indigo-500"></span></span>' : ''}
-                                <span class="font-bold text-[10px]">${absoluteTimeString}</span>
-                                <span class="text-xs font-semibold truncate max-w-[150px]">${item.task}</span>
+                                <span class="font-bold scale-text-xs">${absoluteTimeString}</span>
+                                <span class="scale-text-xs font-semibold truncate max-w-[150px]">${item.task}</span>
                             </div>
-                            <span class="text-[9px] opacity-40 font-black">+${item.offset}m</span>
+                            <span class="scale-text-xs opacity-40 font-black">+${item.offset}m</span>
                         `;
 
                         liveList.appendChild(row);
@@ -1348,22 +1419,12 @@
                 }
             }
 
-            // Auto-scale Schedule widget items
+            // High Precision responsive proportional scaling multiplier calculations
             widget.onResize = () => {
-                const textScale = Math.max(9, Math.min(widget.w * 0.03, widget.h * 0.05));
+                const scale = Math.min(widget.w / 420, widget.h / 480);
+                el.style.setProperty('--scale', scale);
                 const titleHeader = container.querySelector(`#tt-title-${widget.id}`);
-                if (titleHeader) titleHeader.style.fontSize = `${textScale}px`;
-
-                const liveTitle = container.querySelector(`#live-period-title-${widget.id}`);
-                const liveDesc = container.querySelector(`#live-status-desc-${widget.id}`);
-                if (liveTitle) liveTitle.style.fontSize = `${textScale * 0.9}px`;
-                if (liveDesc) liveDesc.style.fontSize = `${textScale * 1.1}px`;
-
-                const rowsList = container.querySelectorAll(`#live-agenda-list-${widget.id} > div`);
-                rowsList.forEach(row => {
-                    const spans = row.querySelectorAll('span');
-                    if (spans[1]) spans[1].style.fontSize = `${textScale * 1.1}px`;
-                });
+                if (titleHeader) titleHeader.style.fontSize = `${scale * 12}px`;
             };
 
             renderLayout();
@@ -1371,7 +1432,7 @@
             return () => clearInterval(subTimer);
         }
 
-        // --- 5. WORK SYMBOLS (COLLAPSE & HIGH FOCUS) ---
+        // --- 5. WORK SYMBOLS ---
         function renderSymbols(widget, container) {
             const symbols = [
                 { icon: 'volume-x', label: 'Silence', desc: 'No talking, absolute concentration.', color: 'text-red-500 bg-red-500/10 ring-red-400' },
@@ -1388,21 +1449,21 @@
                 
                 if (showSelectorGrid) {
                     const gridContainer = document.createElement('div');
-                    gridContainer.className = "flex flex-col justify-between h-full select-none";
+                    gridContainer.className = "flex flex-col justify-between h-full select-none scale-gap-2";
                     gridContainer.innerHTML = `
-                        <div class="grid grid-cols-2 gap-2" id="sym-grid-${widget.id}">
+                        <div class="grid grid-cols-2 scale-gap-2" id="sym-grid-${widget.id}">
                             ${symbols.map((sym, i) => {
                                 const active = i === current;
                                 return `
-                                    <button class="sym-btn p-2 border rounded-xl flex flex-col items-center justify-center text-center transition-all duration-300 ${active ? `${sym.color} ring-2 scale-105 shadow-md border-transparent` : 'border-black/10 opacity-60 hover:opacity-100 hover:bg-black/5'}" data-index="${i}">
-                                        <i data-lucide="${sym.icon}" class="w-6 h-6 mb-1"></i>
-                                        <div class="text-[9px] font-black uppercase tracking-wider">${sym.label}</div>
+                                    <button class="sym-btn p-3 border rounded-2xl flex flex-col items-center justify-center text-center transition-all duration-300 ${active ? `${sym.color} ring-2 scale-105 shadow-md border-transparent` : 'border-black/10 opacity-60 hover:opacity-100 hover:bg-black/5'}" data-index="${i}">
+                                        <i data-lucide="${sym.icon}" class="w-8 h-8 mb-2"></i>
+                                        <div class="scale-text-xs font-black uppercase tracking-wider">${sym.label}</div>
                                     </button>
                                 `;
                             }).join('')}
                         </div>
                         <div class="mt-2 text-center bg-black/5 p-1.5 rounded-lg border border-dashed border-black/20">
-                            <p class="text-[10px] font-bold opacity-60">Choose standard classroom rules</p>
+                            <p class="scale-text-xs font-bold opacity-60">Choose standard classroom rules</p>
                         </div>
                     `;
 
@@ -1423,13 +1484,13 @@
                 } else {
                     const sym = symbols[current];
                     const focusCard = document.createElement('button');
-                    focusCard.className = `w-full h-full flex flex-col items-center justify-center text-center p-4 border rounded-[1.5rem] transition-all duration-500 hover:scale-[1.01] active:scale-[0.99] cursor-pointer ${sym.color} border-transparent ring-2 ring-indigo-400 shadow-xl`;
+                    focusCard.className = `w-full h-full flex flex-col items-center justify-center text-center scale-p-5 border rounded-[1.5rem] transition-all duration-500 hover:scale-[1.01] active:scale-[0.99] cursor-pointer ${sym.color} border-transparent ring-2 ring-indigo-400 shadow-xl`;
                     
                     focusCard.innerHTML = `
                         <div class="flex-grow flex flex-col items-center justify-center">
                             <i id="sym-focus-icon-${widget.id}" data-lucide="${sym.icon}" class="w-16 h-16 mb-2 animate-bounce"></i>
-                            <h2 id="sym-focus-label-${widget.id}" class="text-3xl font-black uppercase tracking-wider mb-1">${sym.label}</h2>
-                            <p id="sym-focus-desc-${widget.id}" class="text-xs font-semibold opacity-80 max-w-[240px] leading-snug mx-auto">${sym.desc}</p>
+                            <h2 id="sym-focus-label-${widget.id}" class="scale-text-3xl font-black uppercase tracking-wider mb-1">${sym.label}</h2>
+                            <p id="sym-focus-desc-${widget.id}" class="scale-text-sm font-semibold opacity-80 max-w-[240px] leading-snug mx-auto">${sym.desc}</p>
                         </div>
                         <span class="widget-controls text-[8px] font-bold uppercase tracking-widest text-indigo-600 bg-white/50 backdrop-blur px-2.5 py-1 rounded-lg mt-2 border border-indigo-200">Click to Change Symbol</span>
                     `;
@@ -1446,9 +1507,9 @@
                 }
             }
 
-            // Auto-scale Expectation Symbol
             widget.onResize = () => {
                 const scale = Math.min(widget.w / 320, widget.h / 340);
+                el.style.setProperty('--scale', scale);
                 
                 const focusIcon = container.querySelector(`#sym-focus-icon-${widget.id}`);
                 const focusLabel = container.querySelector(`#sym-focus-label-${widget.id}`);
@@ -1467,7 +1528,7 @@
             return null;
         }
 
-        // --- 6. TEXT WIDGET (WITH RICH STICKY STYLING OPTIONS) ---
+        // --- 6. TEXT WIDGET ---
         function renderText(widget, container) {
             let baseSize = widget.data.baseSize || 18;
             let align = widget.data.alignment || 'left';
@@ -1485,13 +1546,12 @@
                             <button data-align="center" class="px-1 py-0.5 rounded hover:bg-black/10 ${align==='center'?'bg-black/10':''}"><i data-lucide="align-center" class="w-3 h-3"></i></button>
                             <button data-align="right" class="px-1 py-0.5 rounded hover:bg-black/10 ${align==='right'?'bg-black/10':''}"><i data-lucide="align-right" class="w-3 h-3"></i></button>
                         </div>
-                        <!-- Sticky Pastel Colors -->
                         <div class="flex space-x-1" id="sticky-palette-${widget.id}">
                             <button data-color="" class="w-4 h-4 rounded-full border border-black/20 bg-white" title="Standard"></button>
-                            <button data-color="bg-amber-100 border-amber-300 text-amber-950" class="w-4 h-4 rounded-full bg-amber-200 border border-amber-400" title="Sticky Yellow"></button>
-                            <button data-color="bg-sky-100 border-sky-300 text-sky-950" class="w-4 h-4 rounded-full bg-sky-200 border border-sky-400" title="Sticky Blue"></button>
-                            <button data-color="bg-rose-100 border-rose-300 text-rose-950" class="w-4 h-4 rounded-full bg-rose-200 border border-rose-400" title="Sticky Pink"></button>
-                            <button data-color="bg-emerald-100 border-emerald-300 text-emerald-950" class="w-4 h-4 rounded-full bg-emerald-200 border border-emerald-400" title="Sticky Green"></button>
+                            <button data-color="bg-amber-100 border-amber-300 text-amber-950 shadow-sm" class="w-4 h-4 rounded-full bg-amber-200 border border-amber-400" title="Sticky Yellow"></button>
+                            <button data-color="bg-sky-100 border-sky-300 text-sky-950 shadow-sm" class="w-4 h-4 rounded-full bg-sky-200 border border-sky-400" title="Sticky Blue"></button>
+                            <button data-color="bg-rose-100 border-rose-300 text-rose-950 shadow-sm" class="w-4 h-4 rounded-full bg-rose-200 border border-rose-400" title="Sticky Pink"></button>
+                            <button data-color="bg-emerald-100 border-emerald-300 text-emerald-950 shadow-sm" class="w-4 h-4 rounded-full bg-emerald-200 border border-emerald-400" title="Sticky Green"></button>
                         </div>
                     </div>
                     <textarea id="txt-${widget.id}" class="w-full flex-grow bg-transparent resize-none outline-none leading-relaxed font-medium placeholder-zinc-500 transition-all" placeholder="Type instructions here..."></textarea>
@@ -1505,7 +1565,6 @@
             function updateStickyColor(colorClass) {
                 widget.data.stickyColor = colorClass;
                 const parent = container.closest('.widget-wrapper');
-                // Remove custom palette items
                 parent.classList.remove('bg-amber-100', 'border-amber-300', 'text-amber-950', 'bg-sky-100', 'border-sky-300', 'text-sky-950', 'bg-rose-100', 'border-rose-300', 'text-rose-950', 'bg-emerald-100', 'border-emerald-300', 'text-emerald-950');
                 if (colorClass) {
                     parent.classList.add(...colorClass.split(' '));
@@ -1546,8 +1605,11 @@
                 };
             });
 
-            widget.onResize = updateSize;
-            updateSize(); 
+            widget.onResize = () => {
+                const scale = Math.min(widget.w / 400, widget.h / 320);
+                el.style.setProperty('--scale', scale);
+                updateSize(); 
+            };
 
             return null;
         }
@@ -1563,7 +1625,7 @@
         let isDrawMode = false;
         let isGlobalDrawing = false;
         let globalColor = '#ef4444';
-        let drawType = 'freehand'; // 'freehand' | 'line' | 'arrow' | 'rect' | 'circle' | 'eraser'
+        let drawType = 'freehand'; 
         let drawThickness = 5;
         let currentGlobalPath = null;
         let startPoint = null;
@@ -1576,7 +1638,6 @@
         window.addEventListener('resize', syncGlobalCanvas);
         setTimeout(syncGlobalCanvas, 100);
 
-        // Render shapes and lines beautifully
         function drawShape(ctx, type, p1, p2, color, size) {
             ctx.beginPath();
             ctx.strokeStyle = color;
@@ -1593,7 +1654,6 @@
                 ctx.lineTo(p2.x, p2.y);
                 ctx.stroke();
                 
-                // Draw vector arrowhead
                 const angle = Math.atan2(p2.y - p1.y, p2.x - p1.x);
                 const headLength = Math.max(12, size * 2.5);
                 ctx.beginPath();
@@ -1629,7 +1689,6 @@
                     for(let i=1; i<p.points.length; i++) globalCtx.lineTo(p.points[i].x, p.points[i].y);
                     globalCtx.stroke();
                 } else if (p.type === 'eraser') {
-                    // Erase by painting with clear composite values
                     globalCtx.save();
                     globalCtx.globalCompositeOperation = 'destination-out';
                     globalCtx.beginPath();
@@ -1699,7 +1758,6 @@
                     globalCtx.stroke();
                 }
             } else {
-                // Interactive Vector Shape Guide overlays
                 redrawGlobal();
                 globalCtx.save();
                 globalCtx.globalCompositeOperation = 'source-over';
@@ -1721,7 +1779,6 @@
         globalCanvas.addEventListener('pointerup', stopGlobalDraw);
         globalCanvas.addEventListener('pointerleave', stopGlobalDraw);
 
-        // Drawing Toolbar Event Listeners
         document.querySelectorAll('#global-colors button').forEach(btn => {
             btn.onclick = () => {
                 globalColor = btn.dataset.c;
@@ -1730,7 +1787,6 @@
             };
         });
 
-        // Set Toolbar draw tools
         document.querySelectorAll('#draw-shapes button').forEach(btn => {
             btn.onclick = () => {
                 drawType = btn.dataset.t;
@@ -1754,6 +1810,13 @@
         };
 
         document.getElementById('global-exit').onclick = toggleDrawMode;
+
+        // Register basic Offline PWA handler
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./sw.js').catch(() => {});
+            });
+        }
 
     </script>
 </body>
