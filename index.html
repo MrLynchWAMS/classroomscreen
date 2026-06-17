@@ -147,6 +147,35 @@
             font-style: italic;
             cursor: text;
         }
+        
+        /* Dock Styling */
+        .dock-btn {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 0.5rem;
+            border-radius: 1.5rem;
+            transition: all 0.2s;
+            min-width: 72px;
+        }
+        .dock-btn:active { transform: scale(0.95); }
+        .dock-btn .icon-wrap {
+            padding: 0.75rem;
+            border-radius: 1.2rem;
+            margin-bottom: 0.35rem;
+            transition: transform 0.3s;
+        }
+        .dock-btn:hover .icon-wrap { transform: translateY(-4px) scale(1.05); }
+        .dock-btn span {
+            font-size: 0.65rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: #9ca3af;
+            transition: color 0.2s;
+        }
+        .dock-btn:hover span { color: #ffffff; }
     </style>
 </head>
 <body id="app-body" class="bg-slate-900 transition-colors duration-700 bg-cover bg-center bg-no-repeat bg-fixed w-screen h-screen overflow-hidden select-none animate-fade-in">
@@ -295,39 +324,10 @@
         </div>
     </div>
 
-    <style>
-        .dock-btn {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            padding: 0.5rem;
-            border-radius: 1.5rem;
-            transition: all 0.2s;
-            min-width: 72px;
-        }
-        .dock-btn:active { transform: scale(0.95); }
-        .dock-btn .icon-wrap {
-            padding: 0.75rem;
-            border-radius: 1.2rem;
-            margin-bottom: 0.35rem;
-            transition: transform 0.3s;
-        }
-        .dock-btn:hover .icon-wrap { transform: translateY(-4px) scale(1.05); }
-        .dock-btn span {
-            font-size: 0.65rem;
-            font-weight: 800;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            color: #9ca3af;
-            transition: color 0.2s;
-        }
-        .dock-btn:hover span { color: #ffffff; }
-    </style>
-
+    <!-- MAIN JAVASCRIPT LOGIC (DE-DUPLICATED AND LINEARLY STRUCTURED) -->
     <script>
         // ==========================================
-        // STATE & CONSTANTS
+        // 1. CONSTANTS & GLOBAL STATE
         // ==========================================
         const BACKGROUNDS = [
             { id: 'bg1', type: 'image', url: 'https://images.unsplash.com/photo-1448375240586-882707db888b?auto=format&fit=crop&w=1920&q=80' },
@@ -344,7 +344,6 @@
             { id: 'bg8', type: 'color', css: 'bg-zinc-900' }
         ];
 
-        // Central Baseline Dimensions for Proportional Scaling calculations
         const defaults = {
             clock: { w: 320, h: 220, contentW: 320, contentH: 180 },
             timer: { w: 320, h: 320, contentW: 320, contentH: 280 },
@@ -362,15 +361,30 @@
             maxZ: 100
         };
 
-        // DOM elements
+        // ==========================================
+        // 2. DOM CACHE
+        // ==========================================
         const workspace = document.getElementById('workspace');
         const emptyState = document.getElementById('empty-state');
         const appBody = document.getElementById('app-body');
         const bgOverlay = document.getElementById('bg-overlay');
         const bgPanel = document.getElementById('bg-panel');
+        const globalCanvas = document.getElementById('global-canvas');
+        const globalCtx = globalCanvas.getContext('2d');
+        const drawToolbar = document.getElementById('draw-toolbar');
+        const bottomDock = document.getElementById('bottom-dock');
+
+        // Drawing Globals
+        let isDrawMode = false;
+        let isGlobalDrawing = false;
+        let globalColor = '#ef4444';
+        let drawType = 'freehand'; 
+        let drawThickness = 5;
+        let currentGlobalPath = null;
+        let startPoint = null;
 
         // ==========================================
-        // UTILITIES & STATE ENCODERS (UNICODE SAFE)
+        // 3. UTILITIES & DATA ENCODERS
         // ==========================================
         function generateId() { return Math.random().toString(36).substr(2, 9); }
 
@@ -451,8 +465,31 @@
             };
         }
 
+        function loadStateFromURL() {
+            const hash = window.location.hash.substring(1);
+            if (!hash) {
+                applyBackground(State.background);
+                return;
+            }
+            try {
+                const saved = decodeState(hash);
+                if (!saved) return;
+                if (saved.theme) setTheme(saved.theme);
+                if (saved.background) applyBackground(saved.background);
+                if (saved.globalPaths) {
+                    State.globalPaths = saved.globalPaths;
+                    redrawGlobal();
+                }
+                if (saved.widgets && Array.isArray(saved.widgets)) {
+                    State.widgets = []; 
+                    workspace.innerHTML = ''; 
+                    saved.widgets.forEach(w => addWidgetToDOM(w, true));
+                }
+            } catch (e) { console.error("URL Load failed", e); }
+        }
+
         // ==========================================
-        // THEMES & BACKGROUND MANAGERS
+        // 4. THEME & BACKGROUND MANAGERS
         // ==========================================
         function applyBackground(bg) {
             State.background = bg;
@@ -523,10 +560,8 @@
         }
 
         // ==========================================
-        // INDIVIDUAL WIDGET CONTROLLERS
+        // 5. INDIVIDUAL WIDGET RENDERERS
         // ==========================================
-
-        // --- 1. CLOCK ---
         function renderClock(widget, container) {
             widget.data.isDigital = widget.data.isDigital !== false;
             
@@ -610,7 +645,6 @@
             return () => clearInterval(interval); 
         }
 
-        // --- 2. TIMER ---
         function renderTimer(widget, container) {
             let total = widget.data.total || 300;
             let left = widget.data.left !== undefined ? widget.data.left : 300;
@@ -754,7 +788,6 @@
             return () => clearInterval(interval);
         }
 
-        // --- 3. STOPWATCH ---
         function renderStopwatch(widget, container) {
             let ms = widget.data.ms || 0;
             let isRunning = false;
@@ -888,7 +921,6 @@
             return () => clearInterval(interval);
         }
 
-        // --- 4. TIMETABLE / SCHEDULE ---
         function renderTimetable(widget, container) {
             let periods = widget.data.periods || [
                 { id: 'p1', name: 'Period 1', time: '08:30' },
@@ -1151,7 +1183,6 @@
             return () => clearInterval(subTimer);
         }
 
-        // --- 5. WORK SYMBOLS ---
         function renderSymbols(widget, container) {
             const symbols = [
                 { icon: 'volume-x', label: 'Silence', desc: 'No talking, absolute concentration.', color: 'text-red-500 bg-red-500/10 ring-red-400' },
@@ -1228,7 +1259,6 @@
             return null;
         }
 
-        // --- 6. TEXT WIDGET ---
         function renderText(widget, container) {
             let align = widget.data.alignment || 'left';
             let stickyColor = widget.data.stickyColor || '';
@@ -1354,8 +1384,20 @@
         }
 
         // ==========================================
-        // WIDGET GENERATION AND CANVAS RESIZING
+        // 6. WIDGET DISPATCHER & DOM MANAGER
         // ==========================================
+        function renderWidgetContent(widget, container) {
+            switch(widget.type) {
+                case 'clock': return renderClock(widget, container);
+                case 'timer': return renderTimer(widget, container);
+                case 'stopwatch': return renderStopwatch(widget, container);
+                case 'timetable': return renderTimetable(widget, container);
+                case 'symbols': return renderSymbols(widget, container);
+                case 'text': return renderText(widget, container);
+                default: return null;
+            }
+        }
+
         function addWidgetToDOM(widget, isLoad) {
             if (!isLoad) {
                 State.widgets.push(widget);
@@ -1534,27 +1576,13 @@
         }
 
         // ==========================================
-        // GLOBAL DRAWING (ANNOTATION ENGINE WITH SHAPES)
+        // 7. GLOBAL DRAWING / CANVAS ENGINE
         // ==========================================
-        const globalCanvas = document.getElementById('global-canvas');
-        const globalCtx = globalCanvas.getContext('2d');
-        const drawToolbar = document.getElementById('draw-toolbar');
-        const bottomDock = document.getElementById('bottom-dock');
-
-        let isDrawMode = false;
-        let isGlobalDrawing = false;
-        let globalColor = '#ef4444';
-        let drawType = 'freehand'; 
-        let drawThickness = 5;
-        let currentGlobalPath = null;
-        let startPoint = null;
-
         function syncGlobalCanvas() {
             globalCanvas.width = window.innerWidth;
             globalCanvas.height = window.innerHeight;
             redrawGlobal();
         }
-        window.addEventListener('resize', syncGlobalCanvas);
 
         function drawShape(ctx, type, p1, p2, color, size) {
             ctx.beginPath();
@@ -1639,75 +1667,21 @@
             }
         }
 
-        globalCanvas.addEventListener('pointerdown', (e) => {
-            isGlobalDrawing = true;
-            startPoint = {x: Math.round(e.clientX), y: Math.round(e.clientY)};
-            
-            currentGlobalPath = { 
-                type: drawType,
-                color: globalColor, 
-                size: drawThickness,
-                points: [startPoint] 
-            };
-            
-            if (drawType === 'freehand' || drawType === 'eraser') {
-                globalCtx.beginPath();
-                if (drawType === 'eraser') {
-                    globalCtx.globalCompositeOperation = 'destination-out';
-                    globalCtx.strokeStyle = 'rgba(0,0,0,1)';
-                } else {
-                    globalCtx.globalCompositeOperation = 'source-over';
-                    globalCtx.strokeStyle = globalColor;
-                }
-                globalCtx.lineWidth = drawThickness;
-                globalCtx.lineCap = 'round';
-                globalCtx.moveTo(e.clientX, e.clientY);
-            }
-        });
-
-        globalCanvas.addEventListener('pointermove', (e) => {
-            if(!isGlobalDrawing) return;
-            
-            if (drawType === 'freehand' || drawType === 'eraser') {
-                const last = currentGlobalPath.points[currentGlobalPath.points.length - 1];
-                if(Math.hypot(e.clientX - last.x, e.clientY - last.y) > 3) {
-                    currentGlobalPath.points.push({x: Math.round(e.clientX), y: Math.round(e.clientY)});
-                    globalCtx.lineTo(e.clientX, e.clientY);
-                    globalCtx.stroke();
-                }
-            } else {
-                redrawGlobal();
-                globalCtx.save();
-                globalCtx.globalCompositeOperation = 'source-over';
-                drawShape(globalCtx, drawType, startPoint, {x: Math.round(e.clientX), y: Math.round(e.clientY)}, globalColor, drawThickness);
-                globalCtx.restore();
-            }
-        });
-
-        const stopGlobalDraw = (e) => {
-            if(isGlobalDrawing) {
-                isGlobalDrawing = false;
-                if (drawType !== 'freehand' && drawType !== 'eraser') {
-                    currentGlobalPath.points.push({x: Math.round(e.clientX), y: Math.round(e.clientY)});
-                }
-                State.globalPaths.push(currentGlobalPath);
-                redrawGlobal();
-            }
-        };
-        globalCanvas.addEventListener('pointerup', stopGlobalDraw);
-        globalCanvas.addEventListener('pointerleave', stopGlobalDraw);
-
         // ==========================================
-        // INITIALIZATION AND EVENT BINDINGS
+        // 8. INITIALIZATION & EVENT BINDINGS
         // ==========================================
         window.addEventListener('load', () => {
-            // Essential Initializations
+            
+            // Layout setups
             syncGlobalCanvas();
             initBackgroundPanel();
             loadStateFromURL();
             lucide.createIcons();
 
-            // Setup Tool button clicks
+            // Window Resizing bindings
+            window.addEventListener('resize', syncGlobalCanvas);
+
+            // Dock Button actions
             document.querySelectorAll('.dock-btn').forEach(btn => {
                 btn.onclick = () => {
                     const type = btn.dataset.type;
@@ -1715,7 +1689,67 @@
                 };
             });
 
-            // Toolbar action selections
+            // Global Canvas Event Binding
+            globalCanvas.addEventListener('pointerdown', (e) => {
+                isGlobalDrawing = true;
+                startPoint = {x: Math.round(e.clientX), y: Math.round(e.clientY)};
+                
+                currentGlobalPath = { 
+                    type: drawType,
+                    color: globalColor, 
+                    size: drawThickness,
+                    points: [startPoint] 
+                };
+                
+                if (drawType === 'freehand' || drawType === 'eraser') {
+                    globalCtx.beginPath();
+                    if (drawType === 'eraser') {
+                        globalCtx.globalCompositeOperation = 'destination-out';
+                        globalCtx.strokeStyle = 'rgba(0,0,0,1)';
+                    } else {
+                        globalCtx.globalCompositeOperation = 'source-over';
+                        globalCtx.strokeStyle = globalColor;
+                    }
+                    globalCtx.lineWidth = drawThickness;
+                    globalCtx.lineCap = 'round';
+                    globalCtx.moveTo(e.clientX, e.clientY);
+                }
+            });
+
+            globalCanvas.addEventListener('pointermove', (e) => {
+                if(!isGlobalDrawing) return;
+                
+                if (drawType === 'freehand' || drawType === 'eraser') {
+                    const last = currentGlobalPath.points[currentGlobalPath.points.length - 1];
+                    if(Math.hypot(e.clientX - last.x, e.clientY - last.y) > 3) {
+                        currentGlobalPath.points.push({x: Math.round(e.clientX), y: Math.round(e.clientY)});
+                        globalCtx.lineTo(e.clientX, e.clientY);
+                        globalCtx.stroke();
+                    }
+                } else {
+                    redrawGlobal();
+                    globalCtx.save();
+                    globalCtx.globalCompositeOperation = 'source-over';
+                    drawShape(globalCtx, drawType, startPoint, {x: Math.round(e.clientX), y: Math.round(e.clientY)}, globalColor, drawThickness);
+                    globalCtx.restore();
+                }
+            });
+
+            const stopGlobalDraw = (e) => {
+                if(isGlobalDrawing) {
+                    isGlobalDrawing = false;
+                    if (drawType !== 'freehand' && drawType !== 'eraser') {
+                        currentGlobalPath.points.push({x: Math.round(e.clientX), y: Math.round(e.clientY)});
+                    }
+                    State.globalPaths.push(currentGlobalPath);
+                    redrawGlobal();
+                }
+            };
+            
+            globalCanvas.addEventListener('pointerup', stopGlobalDraw);
+            globalCanvas.addEventListener('pointerleave', stopGlobalDraw);
+
+            // Draw Toolbar Colors
             document.querySelectorAll('#global-colors button').forEach(btn => {
                 btn.onclick = () => {
                     globalColor = btn.dataset.c;
@@ -1724,6 +1758,7 @@
                 };
             });
 
+            // Draw Toolbar Shapes
             document.querySelectorAll('#draw-shapes button').forEach(btn => {
                 btn.onclick = () => {
                     drawType = btn.dataset.t;
@@ -1732,6 +1767,7 @@
                 };
             });
 
+            // Draw Settings
             document.getElementById('draw-thickness').oninput = (e) => {
                 drawThickness = parseInt(e.target.value);
             };
@@ -1749,7 +1785,7 @@
             document.getElementById('global-exit').onclick = toggleDrawMode;
         });
 
-        // Register basic Offline Service Worker (Optional for PWA functionality)
+        // PWA Offline registration 
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
                 navigator.serviceWorker.register('./sw.js').catch(() => {});
