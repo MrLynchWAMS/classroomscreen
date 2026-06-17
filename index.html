@@ -133,7 +133,7 @@
         }
 
         .theme-transparent .drag-handle { background: rgba(0,0,0,0.5) !important; border-bottom: none; border-radius: 1.5rem 1.5rem 0 0;}
-        .theme-transparent input, .theme-transparent textarea { color: #ffffff; text-shadow: 0 2px 5px rgba(0,0,0,0.8); }
+        .theme-transparent input, .theme-transparent textarea, .theme-transparent [contenteditable] { color: #ffffff; text-shadow: 0 2px 5px rgba(0,0,0,0.8); }
         .theme-transparent .quick-btn, .theme-transparent .sym-btn, .theme-transparent .del-btn {
             background: rgba(0,0,0,0.4) !important;
             border: 1px solid rgba(255,255,255,0.2) !important;
@@ -167,6 +167,14 @@
             background: #4f46e5;
             cursor: pointer;
             box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+
+        /* Contenteditable Placeholder */
+        [contenteditable=true]:empty:before {
+            content: attr(placeholder);
+            color: rgba(156, 163, 175, 0.6);
+            font-style: italic;
+            cursor: text;
         }
     </style>
 </head>
@@ -425,6 +433,27 @@
             return JSON.parse(decodeURIComponent(escape(atob(hash))));
         }
 
+        // FIXED: Deep clone state safely while stripping non-serializable fields (functions like onResize, closures, etc.)
+        function getCleanState() {
+            const cleanWidgets = State.widgets.map(w => {
+                return {
+                    id: w.id,
+                    type: w.type,
+                    x: w.x,
+                    y: w.y,
+                    w: w.w,
+                    h: w.h,
+                    data: JSON.parse(JSON.stringify(w.data || {})) // Safely clone pure values
+                };
+            });
+            return {
+                theme: State.theme,
+                background: State.background,
+                globalPaths: State.globalPaths,
+                widgets: cleanWidgets
+            };
+        }
+
         function loadStateFromURL() {
             const hash = window.location.hash.substring(1);
             if (!hash) {
@@ -448,7 +477,8 @@
         }
 
         document.getElementById('btn-save').addEventListener('click', () => {
-            const encoded = encodeState(State);
+            const clean = getCleanState();
+            const encoded = encodeState(clean);
             const url = `${window.location.origin}${window.location.pathname}#${encoded}`;
             try {
                 const tempInput = document.createElement("input");
@@ -911,9 +941,9 @@
                     timeContainer.innerHTML = `<span>${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}</span>`;
                 } else {
                     timeContainer.innerHTML = `
-                        <input type="number" id="inp-timer-m-${widget.id}" min="0" max="999" class="bg-black/5 rounded-lg text-center font-black focus:bg-amber-500/10 focus:ring-1 focus:ring-amber-400" value="${String(mins).padStart(2, '0')}" style="width: 1.25em;">
+                        <input type="number" id="inp-timer-m-${widget.id}" min="0" max="999" class="bg-transparent text-center font-black focus:bg-amber-500/10 focus:ring-1 focus:ring-amber-400" value="${String(mins).padStart(2, '0')}" style="width: 1.25em;">
                         <span>:</span>
-                        <input type="number" id="inp-timer-s-${widget.id}" min="0" max="59" class="bg-black/5 rounded-lg text-center font-black focus:bg-amber-500/10 focus:ring-1 focus:ring-amber-400" value="${String(secs).padStart(2, '0')}" style="width: 1.1em;">
+                        <input type="number" id="inp-timer-s-${widget.id}" min="0" max="59" class="bg-transparent text-center font-black focus:bg-amber-500/10 focus:ring-1 focus:ring-amber-400" value="${String(secs).padStart(2, '0')}" style="width: 1.1em;">
                     `;
 
                     const inpM = timeContainer.querySelector(`#inp-timer-m-${widget.id}`);
@@ -1066,11 +1096,11 @@
                 } else {
                     hint.style.visibility = "visible";
                     interactiveContainer.innerHTML = `
-                        <input type="number" id="inp-m-${widget.id}" min="0" max="99" class="bg-black/5 rounded text-center font-black focus:bg-purple-500/10 focus:ring-1 focus:ring-purple-400" value="${String(m).padStart(2, '0')} "style="width: 1.25em;">
+                        <input type="number" id="inp-m-${widget.id}" min="0" max="99" class="bg-transparent text-center font-black focus:bg-purple-500/10 focus:ring-1 focus:ring-purple-400" value="${String(m).padStart(2, '0')} "style="width: 1.25em;">
                         <span>:</span>
-                        <input type="number" id="inp-s-${widget.id}" min="0" max="59" class="bg-black/5 rounded text-center font-black focus:bg-purple-500/10 focus:ring-1 focus:ring-purple-400" value="${String(s).padStart(2, '0')} "style="width: 1.1em;">
+                        <input type="number" id="inp-s-${widget.id}" min="0" max="59" class="bg-transparent text-center font-black focus:bg-purple-500/10 focus:ring-1 focus:ring-purple-400" value="${String(s).padStart(2, '0')} "style="width: 1.1em;">
                         <span>.</span>
-                        <input type="number" id="inp-c-${widget.id}" min="0" max="99" class="bg-black/5 rounded text-center font-black focus:bg-purple-500/10 focus:ring-1 focus:ring-purple-400" value="${String(centi).padStart(2, '0')} "style="width: 1.1em;">
+                        <input type="number" id="inp-c-${widget.id}" min="0" max="99" class="bg-transparent text-center font-black focus:bg-purple-500/10 focus:ring-1 focus:ring-purple-400" value="${String(centi).padStart(2, '0')} "style="width: 1.1em;">
                     `;
 
                     const inputs = ['m', 's', 'c'].map(char => interactiveContainer.querySelector(`#inp-${char}-${widget.id}`));
@@ -1158,7 +1188,7 @@
             return () => clearInterval(interval);
         }
 
-        // --- 4. TIMETABLE / SCHEDULE (FULLY SCALABLE VECTOR SIZING ENHANCED) ---
+        // --- 4. TIMETABLE / SCHEDULE ---
         function renderTimetable(widget, container) {
             let periods = widget.data.periods || [
                 { id: 'p1', name: 'Period 1', time: '08:30' },
@@ -1185,7 +1215,6 @@
             let isEditMode = widget.data.isEditMode !== false;
 
             function renderLayout() {
-                // Apply layout wrappers that map variable scaling classes
                 container.innerHTML = `
                     <div class="flex flex-col h-full w-full justify-between scale-p-3 scale-gap-2">
                         <!-- Navigation tabs -->
@@ -1419,12 +1448,50 @@
                 }
             }
 
-            // High Precision responsive proportional scaling multiplier calculations
+            // PROPORTIONAL LAYOUT SCALING FIXED:
+            // Adjusts all sub-agenda heights, text layers, margins, icons, and gaps proportionately
             widget.onResize = () => {
                 const scale = Math.min(widget.w / 420, widget.h / 480);
                 el.style.setProperty('--scale', scale);
+                
                 const titleHeader = container.querySelector(`#tt-title-${widget.id}`);
                 if (titleHeader) titleHeader.style.fontSize = `${scale * 12}px`;
+                
+                const livePeriodTitle = container.querySelector(`#live-period-title-${widget.id}`);
+                const liveStatusDesc = container.querySelector(`#live-status-desc-${widget.id}`);
+                if (livePeriodTitle) livePeriodTitle.style.fontSize = `${scale * 12}px`;
+                if (liveStatusDesc) liveStatusDesc.style.fontSize = `${scale * 14}px`;
+
+                container.querySelectorAll('.scale-p-3').forEach(item => {
+                    item.style.padding = `${Math.max(4, 12 * scale)}px`;
+                });
+                container.querySelectorAll('.scale-p-2').forEach(item => {
+                    item.style.padding = `${Math.max(4, 10 * scale)}px`;
+                });
+                container.querySelectorAll('.scale-p-1').forEach(item => {
+                    item.style.padding = `${Math.max(2, 6 * scale)}px`;
+                });
+                container.querySelectorAll('.scale-gap-2').forEach(item => {
+                    item.style.gap = `${Math.max(2, 8 * scale)}px`;
+                });
+                container.querySelectorAll('.scale-gap-3').forEach(item => {
+                    item.style.gap = `${Math.max(3, 12 * scale)}px`;
+                });
+                container.querySelectorAll('.scale-text-xs').forEach(item => {
+                    item.style.fontSize = `${Math.max(8, 12 * scale)}px`;
+                });
+                container.querySelectorAll('.scale-text-sm').forEach(item => {
+                    const computedInpSize = `${Math.max(9, 14 * scale)}px`;
+                    item.style.fontSize = computedInpSize;
+                    item.querySelectorAll('input').forEach(inp => inp.style.fontSize = computedInpSize);
+                });
+                container.querySelectorAll('i').forEach(icon => {
+                    const iconSize = Math.max(10, 16 * scale);
+                    icon.style.width = `${iconSize}px`;
+                    icon.style.height = `${iconSize}px`;
+                });
+                
+                updateLiveState();
             };
 
             renderLayout();
@@ -1528,7 +1595,7 @@
             return null;
         }
 
-        // --- 6. TEXT WIDGET ---
+        // --- 6. TEXT WIDGET (EDITABLE DIV WITH COMPRESSED CLIPBOARD IMAGE PASTING) ---
         function renderText(widget, container) {
             let baseSize = widget.data.baseSize || 18;
             let align = widget.data.alignment || 'left';
@@ -1536,7 +1603,7 @@
 
             container.innerHTML = `
                 <div class="flex flex-col h-full w-full justify-between">
-                    <div class="widget-controls flex flex-wrap items-center justify-between mb-2 border-b border-black/10 pb-1 text-[9px] font-bold uppercase tracking-wider opacity-60 gap-y-1">
+                    <div class="widget-controls flex flex-wrap items-center justify-between mb-2 border-b border-black/10 pb-1 text-[9px] font-bold uppercase tracking-wider opacity-60 gap-y-1 select-none">
                         <div class="flex items-center space-x-2">
                             <span>Base Size:</span>
                             <input type="range" id="fs-${widget.id}" min="12" max="48" value="${baseSize}" class="w-16">
@@ -1554,12 +1621,13 @@
                             <button data-color="bg-emerald-100 border-emerald-300 text-emerald-950 shadow-sm" class="w-4 h-4 rounded-full bg-emerald-200 border border-emerald-400" title="Sticky Green"></button>
                         </div>
                     </div>
-                    <textarea id="txt-${widget.id}" class="w-full flex-grow bg-transparent resize-none outline-none leading-relaxed font-medium placeholder-zinc-500 transition-all" placeholder="Type instructions here..."></textarea>
+                    <!-- Overhauled to a contenteditable div for inline text editing + image pastability -->
+                    <div id="txt-${widget.id}" contenteditable="true" class="w-full flex-grow bg-transparent outline-none leading-relaxed font-medium overflow-y-auto break-words min-h-[100px]" placeholder="Type instructions or paste images here..."></div>
                 </div>
             `;
 
             const txt = container.querySelector(`#txt-${widget.id}`);
-            txt.value = widget.data.text || "";
+            txt.innerHTML = widget.data.text || "";
             txt.style.textAlign = align;
 
             function updateStickyColor(colorClass) {
@@ -1577,9 +1645,79 @@
                 const scale = widget.w / 400;
                 const calculatedSize = Math.max(10, baseSize * scale);
                 txt.style.fontSize = `${calculatedSize}px`;
+                
+                // Dynamically scale inline pasted images so they resize together with the text box
+                txt.querySelectorAll('img').forEach(img => {
+                    img.style.maxHeight = `${calculatedSize * 8}px`; 
+                });
             }
 
-            txt.addEventListener('input', (e) => widget.data.text = e.target.value);
+            // Sync structural changes instantly
+            txt.addEventListener('input', () => { widget.data.text = txt.innerHTML; });
+            txt.addEventListener('blur', () => { widget.data.text = txt.innerHTML; });
+
+            // INLINE IMAGE PASTING INTERCEPT ENGINE:
+            // Intercepts paste events, captures files, scales and encodes to low-overhead JPEG 
+            // format to keep share links extremely light and safe.
+            txt.addEventListener('paste', (e) => {
+                const items = (e.clipboardData || e.originalEvent.clipboardData).items;
+                for (let i = 0; i < items.length; i++) {
+                    if (items[i].type.indexOf('image') !== -1) {
+                        e.preventDefault();
+                        const file = items[i].getAsFile();
+                        const reader = new FileReader();
+                        reader.onload = function(event) {
+                            const img = new Image();
+                            img.onload = function() {
+                                const canvas = document.createElement('canvas');
+                                const maxDim = 320; // safe coordinate dimensions for inline presenter
+                                let width = img.width;
+                                let height = img.height;
+                                if (width > height) {
+                                    if (width > maxDim) {
+                                        height = Math.round((height * maxDim) / width);
+                                        width = maxDim;
+                                    }
+                                } else {
+                                    if (height > maxDim) {
+                                        width = Math.round((width * maxDim) / height);
+                                        height = maxDim;
+                                    }
+                                }
+                                canvas.width = width;
+                                canvas.height = height;
+                                const ctx = canvas.getContext('2d');
+                                ctx.drawImage(img, 0, 0, width, height);
+                                
+                                // Low quality JPEG outputs are super light (~15kb) preserving short hash URL limits
+                                const resizedUrl = canvas.toDataURL('image/jpeg', 0.55); 
+
+                                const imgEl = document.createElement('img');
+                                imgEl.src = resizedUrl;
+                                imgEl.className = "inline-block max-w-full h-auto rounded-xl my-2 border border-black/10 shadow-md transition-all";
+                                
+                                // Insert image cleanly at current caret position
+                                const selection = window.getSelection();
+                                if (selection.rangeCount) {
+                                    const range = selection.getRangeAt(0);
+                                    range.deleteContents();
+                                    range.insertNode(imgEl);
+                                    range.collapse(false);
+                                    selection.removeAllRanges();
+                                    selection.addRange(range);
+                                } else {
+                                    txt.appendChild(imgEl);
+                                }
+                                
+                                widget.data.text = txt.innerHTML;
+                                updateSize();
+                            };
+                            img.src = event.target.result;
+                        };
+                        reader.readAsDataURL(file);
+                    }
+                }
+            });
 
             container.querySelector(`#fs-${widget.id}`).addEventListener('input', (e) => {
                 baseSize = e.target.value;
