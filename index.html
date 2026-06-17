@@ -51,35 +51,6 @@
             animation: popIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
         }
 
-        /* Responsive Proportional Scale Styles */
-        .scale-text { font-size: calc(1rem * var(--scale, 1)) !important; }
-        .scale-text-xs { font-size: calc(0.75rem * var(--scale, 1)) !important; }
-        .scale-text-sm { font-size: calc(0.875rem * var(--scale, 1)) !important; }
-        .scale-text-lg { font-size: calc(1.125rem * var(--scale, 1)) !important; }
-        .scale-text-xl { font-size: calc(1.25rem * var(--scale, 1)) !important; }
-        .scale-text-2xl { font-size: calc(1.5rem * var(--scale, 1)) !important; }
-        .scale-text-3xl { font-size: calc(1.875rem * var(--scale, 1)) !important; }
-        .scale-text-4xl { font-size: calc(2.25rem * var(--scale, 1)) !important; }
-        .scale-text-5xl { font-size: calc(3rem * var(--scale, 1)) !important; }
-        .scale-text-6xl { font-size: calc(3.75rem * var(--scale, 1)) !important; }
-        
-        .scale-p-5 { padding: calc(1.25rem * var(--scale, 1)) !important; }
-        .scale-p-3 { padding: calc(0.75rem * var(--scale, 1)) !important; }
-        .scale-p-2 { padding: calc(0.5rem * var(--scale, 1)) !important; }
-        .scale-p-1 { padding: calc(0.25rem * var(--scale, 1)) !important; }
-        
-        .scale-gap-2 { gap: calc(0.5rem * var(--scale, 1)) !important; }
-        .scale-gap-3 { gap: calc(0.75rem * var(--scale, 1)) !important; }
-        .scale-gap-4 { gap: calc(1rem * var(--scale, 1)) !important; }
-        
-        .scale-w-16 { width: calc(4rem * var(--scale, 1)) !important; }
-        .scale-w-14 { width: calc(3.5rem * var(--scale, 1)) !important; }
-        .scale-w-12 { width: calc(3rem * var(--scale, 1)) !important; }
-        .scale-w-10 { width: calc(2.5rem * var(--scale, 1)) !important; }
-
-        .scale-h-10 { height: calc(2.5rem * var(--scale, 1)) !important; }
-        .scale-h-8 { height: calc(2rem * var(--scale, 1)) !important; }
-
         /* Glassmorphism Themes */
         .theme-glass {
             background: rgba(255, 255, 255, 0.75);
@@ -373,6 +344,16 @@
             { id: 'bg8', type: 'color', css: 'bg-zinc-900' }
         ];
 
+        // Central Baseline Dimensions for Proportional Scaling calculations
+        const defaults = {
+            clock: { w: 320, h: 220, contentW: 320, contentH: 180 },
+            timer: { w: 320, h: 320, contentW: 320, contentH: 280 },
+            stopwatch: { w: 320, h: 250, contentW: 320, contentH: 210 },
+            timetable: { w: 420, h: 480, contentW: 420, contentH: 440 },
+            symbols: { w: 320, h: 340, contentW: 320, contentH: 300 },
+            text: { w: 400, h: 320, contentW: 400, contentH: 280 }
+        };
+
         const State = {
             widgets: [],
             theme: 'glass',
@@ -423,17 +404,38 @@
         }
 
         // ==========================================
-        // URL ENCODING & SAVING (UNICODE COMPLIANT)
+        // URL ENCODING & SAVING (ROBUST UNICODE REWRITE)
         // ==========================================
         function encodeState(state) {
-            return btoa(unescape(encodeURIComponent(JSON.stringify(state))));
+            try {
+                const json = JSON.stringify(state);
+                const bytes = new TextEncoder().encode(json);
+                let binary = "";
+                for (let i = 0; i < bytes.byteLength; i++) {
+                    binary += String.fromCharCode(bytes[i]);
+                }
+                return btoa(binary);
+            } catch (e) {
+                console.error("Encoding failed", e);
+                return "";
+            }
         }
 
         function decodeState(hash) {
-            return JSON.parse(decodeURIComponent(escape(atob(hash))));
+            try {
+                const binary = atob(hash);
+                const bytes = new Uint8Array(binary.length);
+                for (let i = 0; i < binary.length; i++) {
+                    bytes[i] = binary.charCodeAt(i);
+                }
+                const json = new TextDecoder().decode(bytes);
+                return JSON.parse(json);
+            } catch (e) {
+                console.error("Decoding failed", e);
+                return null;
+            }
         }
 
-        // FIXED: Deep clone state safely while stripping non-serializable fields (functions like onResize, closures, etc.)
         function getCleanState() {
             const cleanWidgets = State.widgets.map(w => {
                 return {
@@ -443,7 +445,7 @@
                     y: w.y,
                     w: w.w,
                     h: w.h,
-                    data: JSON.parse(JSON.stringify(w.data || {})) // Safely clone pure values
+                    data: JSON.parse(JSON.stringify(w.data || {})) 
                 };
             });
             return {
@@ -462,6 +464,7 @@
             }
             try {
                 const saved = decodeState(hash);
+                if (!saved) return;
                 if (saved.theme) setTheme(saved.theme);
                 if (saved.background) applyBackground(saved.background);
                 if (saved.globalPaths) {
@@ -597,14 +600,6 @@
                 return;
             }
 
-            const defaults = {
-                clock: { w: 320, h: 220 },
-                timer: { w: 320, h: 320 },
-                stopwatch: { w: 320, h: 250 },
-                timetable: { w: 420, h: 480 },
-                symbols: { w: 320, h: 340 },
-                text: { w: 400, h: 320 }
-            };
             const d = defaults[type] || { w: 320, h: 320 };
             const widget = {
                 id: generateId(),
@@ -619,7 +614,7 @@
         }
 
         // ==========================================
-        // WIDGET DOM MANAGEMENT & RESIZING
+        // WIDGET DOM MANAGEMENT & RESIZING Matrix
         // ==========================================
         function addWidgetToDOM(widget, isLoad) {
             if (!isLoad) {
@@ -657,9 +652,18 @@
             `;
 
             const content = document.createElement('div');
-            content.className = "widget-content p-5 flex-grow flex flex-col overflow-hidden relative";
+            content.className = "widget-content flex-grow overflow-hidden relative w-full h-full";
             
-            const cleanupFn = renderWidgetContent(widget, content);
+            // Nested Scaler Box for Proportional Vector Scaling
+            const def = defaults[widget.type];
+            const scaler = document.createElement('div');
+            scaler.id = `scaler-${widget.id}`;
+            scaler.className = "absolute origin-top-left flex flex-col justify-between";
+            scaler.style.width = `${def.contentW}px`;
+            scaler.style.height = `${def.contentH}px`;
+            
+            const cleanupFn = renderWidgetContent(widget, scaler);
+            content.appendChild(scaler);
 
             const resizer = document.createElement('div');
             resizer.className = "resize-handle absolute bottom-1 right-1 w-5 h-5 cursor-se-resize flex items-end justify-end group p-1 z-20";
@@ -681,6 +685,22 @@
                 lucide.createIcons({ root: header });
             }
 
+            // Universal Matrix Scaling calculation: Fits base content boundary inside resizing wrapper bounds cleanly
+            widget.onResize = () => {
+                if (widget.data.collapsed) return;
+                const d = defaults[widget.type];
+                const contentH = widget.h - 40; 
+                const scale = Math.min(widget.w / d.contentW, contentH / d.contentH);
+                
+                // Keep the content scale perfectly centered in the layout Box
+                const dx = (widget.w - (d.contentW * scale)) / 2;
+                const dy = (contentH - (d.contentH * scale)) / 2;
+                
+                scaler.style.transform = `translate(${dx}px, ${dy}px) scale(${scale})`;
+                
+                if (widget.onInternalResize) widget.onInternalResize(scale);
+            };
+
             header.querySelector('.minimize-btn').onclick = (e) => {
                 e.stopPropagation();
                 widget.data.collapsed = !widget.data.collapsed;
@@ -690,11 +710,11 @@
                     el.style.height = '40px';
                     header.querySelector('.minimize-btn').innerHTML = `<i data-lucide="square" class="w-3.5 h-3.5"></i>`;
                 } else {
-                    content.style.display = 'flex';
-                    resizer.style.display = 'flex';
+                    content.style.display = 'block';
+                    resizer.style.display = 'block';
                     el.style.height = `${widget.h}px`;
                     header.querySelector('.minimize-btn').innerHTML = `<i data-lucide="minus" class="w-3.5 h-3.5"></i>`;
-                    if (widget.onResize) widget.onResize();
+                    widget.onResize();
                 }
                 lucide.createIcons({ root: header });
             };
@@ -751,7 +771,7 @@
                     widget.h = Math.max(160, startH + (e.clientY - resizeStartY));
                     el.style.width = `${widget.w}px`;
                     el.style.height = `${widget.h}px`;
-                    if(widget.onResize) widget.onResize(); 
+                    widget.onResize();
                 }
             };
 
@@ -773,21 +793,7 @@
                 document.removeEventListener('pointerup', onPointerUp);
             };
 
-            setTimeout(() => { if (widget.onResize) widget.onResize(); }, 50);
-        }
-
-        // ==========================================
-        // WIDGET RENDERERS
-        // ==========================================
-        function renderWidgetContent(widget, container) {
-            switch(widget.type) {
-                case 'clock': return renderClock(widget, container);
-                case 'timer': return renderTimer(widget, container);
-                case 'stopwatch': return renderStopwatch(widget, container);
-                case 'timetable': return renderTimetable(widget, container);
-                case 'symbols': return renderSymbols(widget, container);
-                case 'text': return renderText(widget, container);
-            }
+            setTimeout(() => { widget.onResize(); }, 50);
         }
 
         // --- 1. CLOCK ---
@@ -795,14 +801,14 @@
             widget.data.isDigital = widget.data.isDigital !== false;
             
             container.innerHTML = `
-                <div class="flex flex-col items-center justify-center h-full w-full relative">
+                <div class="flex flex-col items-center justify-center w-full h-full p-4 relative select-none">
                     <div id="digital-view-${widget.id}" class="text-center w-full ${!widget.data.isDigital ? 'hidden' : ''}">
-                        <div class="time-display text-5xl font-black tracking-tighter transition-all"></div>
-                        <div class="date-display text-sm font-bold uppercase tracking-wider text-indigo-500 mt-2 transition-all"></div>
+                        <div class="time-display text-5xl font-black tracking-tighter"></div>
+                        <div class="date-display text-sm font-bold uppercase tracking-wider text-indigo-500 mt-2"></div>
                     </div>
                     <canvas id="analog-view-${widget.id}" width="160" height="160" class="${widget.data.isDigital ? 'hidden' : ''}"></canvas>
                     
-                    <button id="toggle-${widget.id}" class="widget-controls mt-auto px-3 py-1.5 text-[10px] font-black uppercase rounded-lg hover:bg-black/5 opacity-50 hover:opacity-100 transition-all flex-shrink-0">
+                    <button id="toggle-${widget.id}" class="widget-controls mt-4 px-3 py-1.5 text-[10px] font-black uppercase rounded-lg hover:bg-black/5 opacity-50 hover:opacity-100 transition-all flex-shrink-0">
                         Switch Mode
                     </button>
                 </div>
@@ -824,7 +830,7 @@
                 ctx.beginPath();
                 ctx.arc(0, 0, radius - 6, 0, 2 * Math.PI);
                 ctx.strokeStyle = '#4f46e5';
-                ctx.lineWidth = Math.max(2, radius * 0.05);
+                ctx.lineWidth = 4;
                 ctx.stroke();
 
                 const hr = time.getHours();
@@ -843,9 +849,9 @@
                     ctx.rotate(-pos);
                 };
 
-                drawHand((hr % 12 * Math.PI / 6) + (min * Math.PI / 360), radius * 0.5, Math.max(2, radius * 0.05), 'currentColor');
-                drawHand((min * Math.PI / 30) + (sec * Math.PI / 1800), radius * 0.7, Math.max(1.5, radius * 0.035), 'currentColor');
-                drawHand(sec * Math.PI / 30, radius * 0.82, Math.max(1, radius * 0.02), '#ef4444');
+                drawHand((hr % 12 * Math.PI / 6) + (min * Math.PI / 360), radius * 0.5, 4, 'currentColor');
+                drawHand((min * Math.PI / 30) + (sec * Math.PI / 1800), radius * 0.7, 3, 'currentColor');
+                drawHand(sec * Math.PI / 30, radius * 0.82, 2, '#ef4444');
 
                 ctx.restore();
             }
@@ -856,18 +862,6 @@
                 dateDisp.innerText = now.toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' });
                 if (!widget.data.isDigital) drawAnalog(now);
             }
-
-            widget.onResize = () => {
-                const minDim = Math.min(widget.w, widget.h);
-                const textScale = Math.max(16, minDim * 0.15);
-                timeDisp.style.fontSize = `${textScale}px`;
-                dateDisp.style.fontSize = `${Math.max(10, textScale * 0.3)}px`;
-
-                const canvasSize = Math.max(100, Math.min(widget.w - 40, widget.h - 80));
-                analogView.width = canvasSize;
-                analogView.height = canvasSize;
-                update();
-            };
 
             toggleBtn.onclick = () => {
                 widget.data.isDigital = !widget.data.isDigital;
@@ -895,7 +889,7 @@
             let alarmPlayed = false;
 
             container.innerHTML = `
-                <div class="flex flex-col items-center justify-between h-full w-full select-none">
+                <div class="flex flex-col items-center justify-between w-full h-full p-4 select-none">
                     <div id="svg-wrap-${widget.id}" class="relative flex items-center justify-center" style="width: 144px; height: 144px;">
                         <svg class="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
                             <circle cx="50" cy="50" r="45" class="stroke-current opacity-10 fill-none" stroke-width="5"></circle>
@@ -906,9 +900,9 @@
                     </div>
                     
                     <div class="widget-controls flex space-x-1.5 mt-2 flex-wrap justify-center gap-y-1">
-                        <button class="quick-btn px-2 py-0.5 text-[10px] font-bold rounded-lg bg-black/5 hover:bg-black/10 transition-colors" data-add="30">+30s</button>
-                        <button class="quick-btn px-2 py-0.5 text-[10px] font-bold rounded-lg bg-black/5 hover:bg-black/10 transition-colors" data-add="60">+1m</button>
-                        <button class="quick-btn px-2 py-0.5 text-[10px] font-bold rounded-lg bg-black/5 hover:bg-black/10 transition-colors" data-add="300">+5m</button>
+                        <button class="quick-btn px-2.5 py-1 text-xs font-bold rounded-lg bg-black/5 hover:bg-black/10 transition-colors" data-add="30">+30s</button>
+                        <button class="quick-btn px-2.5 py-1 text-xs font-bold rounded-lg bg-black/5 hover:bg-black/10 transition-colors" data-add="60">+1m</button>
+                        <button class="quick-btn px-2.5 py-1 text-xs font-bold rounded-lg bg-black/5 hover:bg-black/10 transition-colors" data-add="300">+5m</button>
                     </div>
 
                     <div class="widget-controls flex space-x-3 mt-2 flex-shrink-0">
@@ -922,7 +916,6 @@
             const timeContainer = container.querySelector(`#time-container-${widget.id}`);
             const playBtn = container.querySelector(`#play-${widget.id}`);
             const resetBtn = container.querySelector(`#reset-${widget.id}`);
-            const svgWrap = container.querySelector(`#svg-wrap-${widget.id}`);
 
             function updateUI() {
                 if (left < 0) left = 0;
@@ -941,9 +934,9 @@
                     timeContainer.innerHTML = `<span>${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}</span>`;
                 } else {
                     timeContainer.innerHTML = `
-                        <input type="number" id="inp-timer-m-${widget.id}" min="0" max="999" class="bg-transparent text-center font-black focus:bg-amber-500/10 focus:ring-1 focus:ring-amber-400" value="${String(mins).padStart(2, '0')}" style="width: 1.25em;">
+                        <input type="number" id="inp-timer-m-${widget.id}" min="0" max="999" class="bg-black/5 rounded-lg text-center font-black focus:bg-amber-500/10 focus:ring-1 focus:ring-amber-400" value="${String(mins).padStart(2, '0')}" style="width: 1.25em;">
                         <span>:</span>
-                        <input type="number" id="inp-timer-s-${widget.id}" min="0" max="59" class="bg-transparent text-center font-black focus:bg-amber-500/10 focus:ring-1 focus:ring-amber-400" value="${String(secs).padStart(2, '0')}" style="width: 1.1em;">
+                        <input type="number" id="inp-timer-s-${widget.id}" min="0" max="59" class="bg-black/5 rounded-lg text-center font-black focus:bg-amber-500/10 focus:ring-1 focus:ring-amber-400" value="${String(secs).padStart(2, '0')}" style="width: 1.1em;">
                     `;
 
                     const inpM = timeContainer.querySelector(`#inp-timer-m-${widget.id}`);
@@ -965,20 +958,6 @@
                     inpS.onblur = saveTimeFromInputs;
                 }
             }
-
-            widget.onResize = () => {
-                const boxDim = Math.max(90, Math.min(widget.w - 50, widget.h - 110));
-                svgWrap.style.width = `${boxDim}px`;
-                svgWrap.style.height = `${boxDim}px`;
-
-                const fontSizeVal = boxDim * 0.22;
-                timeContainer.style.fontSize = `${fontSizeVal}px`;
-
-                const inputs = timeContainer.querySelectorAll('input');
-                inputs.forEach(inp => {
-                    inp.style.fontSize = `${fontSizeVal}px`;
-                });
-            };
 
             function tick() {
                 if (left <= 0) {
@@ -1053,17 +1032,17 @@
             let laps = widget.data.laps || [];
 
             container.innerHTML = `
-                <div class="flex flex-col h-full w-full select-none justify-between">
+                <div class="flex flex-col h-full w-full select-none justify-between p-4">
                     <div class="text-center py-1 relative flex flex-col items-center flex-shrink-0">
                         <div id="sw-interactive-${widget.id}" class="flex items-center justify-center space-x-1 font-mono font-black tracking-tight text-purple-600 w-full" style="font-size: 1.85rem;">
                         </div>
                         <p id="edit-hint-${widget.id}" class="text-[8px] font-bold tracking-widest text-zinc-400 uppercase mt-0.5">Click to edit starting time</p>
                     </div>
-                    <div id="laps-${widget.id}" class="flex-grow my-1.5 overflow-y-auto space-y-1 pr-1 text-xs"></div>
+                    <div id="laps-${widget.id}" class="flex-grow my-1.5 overflow-y-auto space-y-1 pr-1 text-xs max-h-[80px]"></div>
                     <div class="widget-controls flex space-x-2 mt-auto flex-shrink-0">
                         <button id="play-${widget.id}" class="flex-grow py-2 rounded-xl font-bold text-white transition-all active:scale-95 shadow-md bg-purple-600 hover:bg-purple-700 text-xs">Start</button>
                         <button id="lap-${widget.id}" class="px-3 py-2 rounded-xl bg-purple-500/20 text-purple-600 hover:bg-purple-500/30 font-bold transition-all active:scale-95 text-xs hidden">Lap</button>
-                        <button id="reset-${widget.id}" class="p-2 rounded-xl bg-black/5 hover:bg-black/10 transition-all active:scale-95"><i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i></button>
+                        <button id="reset-${widget.id}" class="p-2.5 rounded-xl bg-black/5 hover:bg-black/10 transition-all active:scale-95"><i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i></button>
                     </div>
                 </div>
             `;
@@ -1096,11 +1075,11 @@
                 } else {
                     hint.style.visibility = "visible";
                     interactiveContainer.innerHTML = `
-                        <input type="number" id="inp-m-${widget.id}" min="0" max="99" class="bg-transparent text-center font-black focus:bg-purple-500/10 focus:ring-1 focus:ring-purple-400" value="${String(m).padStart(2, '0')} "style="width: 1.25em;">
+                        <input type="number" id="inp-m-${widget.id}" min="0" max="99" class="bg-black/5 rounded text-center font-black focus:bg-purple-500/10 focus:ring-1 focus:ring-purple-400" value="${String(m).padStart(2, '0')}" style="width: 1.25em;">
                         <span>:</span>
-                        <input type="number" id="inp-s-${widget.id}" min="0" max="59" class="bg-transparent text-center font-black focus:bg-purple-500/10 focus:ring-1 focus:ring-purple-400" value="${String(s).padStart(2, '0')} "style="width: 1.1em;">
+                        <input type="number" id="inp-s-${widget.id}" min="0" max="59" class="bg-black/5 rounded text-center font-black focus:bg-purple-500/10 focus:ring-1 focus:ring-purple-400" value="${String(s).padStart(2, '0')}" style="width: 1.1em;">
                         <span>.</span>
-                        <input type="number" id="inp-c-${widget.id}" min="0" max="99" class="bg-transparent text-center font-black focus:bg-purple-500/10 focus:ring-1 focus:ring-purple-400" value="${String(centi).padStart(2, '0')} "style="width: 1.1em;">
+                        <input type="number" id="inp-c-${widget.id}" min="0" max="99" class="bg-black/5 rounded text-center font-black focus:bg-purple-500/10 focus:ring-1 focus:ring-purple-400" value="${String(centi).padStart(2, '0')}" style="width: 1.1em;">
                     `;
 
                     const inputs = ['m', 's', 'c'].map(char => interactiveContainer.querySelector(`#inp-${char}-${widget.id}`));
@@ -1119,15 +1098,6 @@
                 ms = (mins * 6000) + (secs * 100) + centis;
                 widget.data.ms = ms;
             }
-
-            widget.onResize = () => {
-                const textScale = Math.max(16, Math.min(widget.w * 0.1, widget.h * 0.16));
-                interactiveContainer.style.fontSize = `${textScale}px`;
-                const inputs = interactiveContainer.querySelectorAll('input');
-                inputs.forEach(inp => {
-                    inp.style.fontSize = `${textScale}px`;
-                });
-            };
 
             function tick() { 
                 ms++; 
@@ -1216,10 +1186,10 @@
 
             function renderLayout() {
                 container.innerHTML = `
-                    <div class="flex flex-col h-full w-full justify-between scale-p-3 scale-gap-2">
+                    <div class="flex flex-col h-full w-full justify-between p-4 gap-2">
                         <!-- Navigation tabs -->
                         <div class="flex items-center justify-between border-b border-black/5 pb-1 mb-1 flex-shrink-0">
-                            <span id="tt-title-${widget.id}" class="scale-text-xs font-black uppercase tracking-widest text-indigo-600">Daily Class Agenda</span>
+                            <span id="tt-title-${widget.id}" class="text-xs font-black uppercase tracking-widest text-indigo-600">Daily Class Agenda</span>
                             <div class="flex space-x-1">
                                 <button id="btn-tab-live-${widget.id}" class="px-2 py-0.5 rounded-lg text-[8px] font-bold uppercase transition-all ${!isEditMode ? 'bg-indigo-600 text-white shadow-sm' : 'hover:bg-black/5'}" title="Switch to live Presentation">Live Present</button>
                                 <button id="btn-tab-edit-${widget.id}" class="px-2 py-0.5 rounded-lg text-[8px] font-bold uppercase transition-all ${isEditMode ? 'bg-indigo-600 text-white shadow-sm' : 'hover:bg-black/5'}" title="Configure times & template items">Settings</button>
@@ -1227,12 +1197,12 @@
                         </div>
 
                         <!-- Main Screen Content Area -->
-                        <div id="timetable-content-${widget.id}" class="flex-grow overflow-y-auto pr-1 mb-1 scale-gap-2"></div>
+                        <div id="timetable-content-${widget.id}" class="flex-grow overflow-y-auto pr-1 mb-1 gap-2 max-h-[360px]"></div>
                     </div>
                 `;
 
-                container.querySelector(`#btn-tab-live-${widget.id}`).onclick = () => { isEditMode = false; widget.data.isEditMode = false; renderMain(); if (widget.onResize) widget.onResize(); };
-                container.querySelector(`#btn-tab-edit-${widget.id}`).onclick = () => { isEditMode = true; widget.data.isEditMode = true; renderMain(); if (widget.onResize) widget.onResize(); };
+                container.querySelector(`#btn-tab-live-${widget.id}`).onclick = () => { isEditMode = false; widget.data.isEditMode = false; renderMain(); };
+                container.querySelector(`#btn-tab-edit-${widget.id}`).onclick = () => { isEditMode = true; widget.data.isEditMode = true; renderMain(); };
 
                 renderMain();
             }
@@ -1242,21 +1212,21 @@
                 
                 if (isEditMode) {
                     subContent.innerHTML = `
-                        <div class="scale-gap-3 flex flex-col h-full">
+                        <div class="gap-3 flex flex-col h-full">
                             <div>
-                                <h4 class="scale-text-xs font-black uppercase tracking-wider text-indigo-500 mb-1 flex justify-between items-center">
+                                <h4 class="text-xs font-black uppercase tracking-wider text-indigo-500 mb-1 flex justify-between items-center">
                                     <span>Class Period Start Times</span>
                                     <button id="add-period-${widget.id}" class="p-0.5 hover:bg-black/5 rounded text-indigo-600"><i data-lucide="plus" class="w-3.5 h-3.5"></i></button>
                                 </h4>
-                                <div id="period-list-${widget.id}" class="scale-gap-1 max-h-[120px] overflow-y-auto pr-1 flex flex-col"></div>
+                                <div id="period-list-${widget.id}" class="gap-1 max-h-[140px] overflow-y-auto pr-1 flex flex-col"></div>
                             </div>
 
                             <div class="mt-2">
-                                <h4 class="scale-text-xs font-black uppercase tracking-wider text-indigo-500 mb-1 flex justify-between items-center">
+                                <h4 class="text-xs font-black uppercase tracking-wider text-indigo-500 mb-1 flex justify-between items-center">
                                     <span>Template Period Agenda</span>
                                     <button id="add-agenda-${widget.id}" class="p-0.5 hover:bg-black/5 rounded text-indigo-600"><i data-lucide="plus" class="w-3.5 h-3.5"></i></button>
                                 </h4>
-                                <div id="agenda-list-${widget.id}" class="scale-gap-1 max-h-[140px] overflow-y-auto pr-1 flex flex-col"></div>
+                                <div id="agenda-list-${widget.id}" class="gap-1 max-h-[160px] overflow-y-auto pr-1 flex flex-col"></div>
                             </div>
                         </div>
                     `;
@@ -1264,27 +1234,27 @@
                     const periodsListContainer = subContent.querySelector(`#period-list-${widget.id}`);
                     periods.forEach((p, idx) => {
                         const row = document.createElement('div');
-                        row.className = "flex items-center justify-between bg-black/[0.02] scale-p-1 rounded-lg scale-text-sm font-semibold";
+                        row.className = "flex items-center justify-between bg-black/[0.02] p-1 rounded-lg text-sm font-semibold";
                         row.innerHTML = `
-                            <input type="text" class="period-name bg-transparent font-bold scale-w-16 border-b border-transparent focus:border-indigo-400" value="${p.name}">
-                            <input type="text" class="period-time bg-transparent scale-w-12 border-b border-transparent focus:border-indigo-400 text-center" placeholder="HH:MM" value="${p.time}">
+                            <input type="text" class="period-name bg-transparent font-bold w-32 border-b border-transparent focus:border-indigo-400" value="${p.name}">
+                            <input type="text" class="period-time bg-transparent w-20 border-b border-transparent focus:border-indigo-400 text-center" placeholder="HH:MM" value="${p.time}">
                             <button class="del-period p-0.5 hover:text-red-500 transition-colors" data-idx="${idx}"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
                         `;
 
                         row.querySelector('.period-name').onchange = (e) => { periods[idx].name = e.target.value; widget.data.periods = periods; };
                         row.querySelector('.period-time').onchange = (e) => { periods[idx].time = e.target.value; widget.data.periods = periods; };
-                        row.querySelector('.del-period').onclick = () => { periods.splice(idx, 1); widget.data.periods = periods; renderMain(); if (widget.onResize) widget.onResize(); };
+                        row.querySelector('.del-period').onclick = () => { periods.splice(idx, 1); widget.data.periods = periods; renderMain(); };
                         periodsListContainer.appendChild(row);
                     });
 
                     const agendaListContainer = subContent.querySelector(`#agenda-list-${widget.id}`);
                     agenda.forEach((a, idx) => {
                         const row = document.createElement('div');
-                        row.className = "flex items-center justify-between bg-black/[0.02] scale-p-1 rounded-lg border-l-4 " + a.color.split(' ')[0] + " scale-text-sm font-semibold";
+                        row.className = "flex items-center justify-between bg-black/[0.02] p-1 rounded-lg border-l-4 " + a.color.split(' ')[0] + " text-sm font-semibold";
                         row.innerHTML = `
                             <div class="flex items-center space-x-0.5">
                                 <span class="opacity-40 font-black text-[9px]">+</span>
-                                <input type="number" class="agenda-offset bg-transparent font-black scale-w-10 text-center" min="0" max="180" value="${a.offset}">
+                                <input type="number" class="agenda-offset bg-transparent font-black w-10 text-center" min="0" max="180" value="${a.offset}">
                                 <span class="opacity-40 text-[10px]">m</span>
                             </div>
                             <input type="text" class="agenda-task bg-transparent flex-grow border-b border-transparent focus:border-indigo-400 px-1 ml-1" value="${a.task}">
@@ -1293,7 +1263,7 @@
 
                         row.querySelector('.agenda-offset').onchange = (e) => { agenda[idx].offset = parseInt(e.target.value) || 0; widget.data.agenda = agenda; };
                         row.querySelector('.agenda-task').onchange = (e) => { agenda[idx].task = e.target.value; widget.data.agenda = agenda; };
-                        row.querySelector('.del-agenda').onclick = () => { agenda.splice(idx, 1); widget.data.agenda = agenda; renderMain(); if (widget.onResize) widget.onResize(); };
+                        row.querySelector('.del-agenda').onclick = () => { agenda.splice(idx, 1); widget.data.agenda = agenda; renderMain(); };
                         agendaListContainer.appendChild(row);
                     });
 
@@ -1302,7 +1272,6 @@
                         periods.push({ id: nextId, name: 'Period ' + (periods.length + 1), time: '12:00' });
                         widget.data.periods = periods;
                         renderMain();
-                        if (widget.onResize) widget.onResize();
                     };
 
                     subContent.querySelector(`#add-agenda-${widget.id}`).onclick = () => {
@@ -1311,20 +1280,19 @@
                         agenda.push({ id: nextId, offset: nextOffset, task: 'New Activity', color: colors[agenda.length % colors.length] });
                         widget.data.agenda = agenda;
                         renderMain();
-                        if (widget.onResize) widget.onResize();
                     };
 
                     lucide.createIcons({ root: subContent });
 
                 } else {
                     subContent.innerHTML = `
-                        <div class="scale-gap-2 flex flex-col h-full justify-between">
-                            <div class="bg-indigo-600/5 border border-indigo-500/20 scale-p-2 rounded-xl flex flex-col items-center text-center">
-                                <div id="live-period-title-${widget.id}" class="scale-text-xs font-black uppercase tracking-wider text-indigo-600">Checking Active Class...</div>
-                                <div id="live-status-desc-${widget.id}" class="scale-text-sm font-semibold opacity-70 mt-0.5">Starting soon...</div>
+                        <div class="gap-2 flex flex-col h-full justify-between">
+                            <div class="bg-indigo-600/5 border border-indigo-500/20 p-2 rounded-xl flex flex-col items-center text-center">
+                                <div id="live-period-title-${widget.id}" class="text-xs font-black uppercase tracking-wider text-indigo-600">Checking Active Class...</div>
+                                <div id="live-status-desc-${widget.id}" class="text-sm font-semibold opacity-70 mt-0.5">Starting soon...</div>
                             </div>
                             
-                            <div id="live-agenda-list-${widget.id}" class="scale-gap-2 flex flex-col"></div>
+                            <div id="live-agenda-list-${widget.id}" class="gap-2 flex flex-col"></div>
                         </div>
                     `;
 
@@ -1379,7 +1347,7 @@
                     }
 
                     liveList.innerHTML = sortedAgenda.map(item => `
-                        <div class="flex justify-between items-center scale-p-2 rounded-xl border border-black/5 opacity-50 scale-text-xs font-bold bg-white/20">
+                        <div class="flex justify-between items-center p-2 rounded-xl border border-black/5 opacity-50 text-xs font-bold bg-white/20">
                             <span>+${item.offset}m: ${item.task}</span>
                         </div>
                     `).join('');
@@ -1426,7 +1394,7 @@
                         const isPast = idx < activeAgendaIdx;
 
                         const row = document.createElement('div');
-                        row.className = `flex justify-between items-center scale-p-2 rounded-xl border-l-4 ${item.color} transition-all shadow-sm ${
+                        row.className = `flex justify-between items-center p-2.5 rounded-xl border-l-4 ${item.color} transition-all shadow-sm ${
                             isActive ? 'ring-2 ring-indigo-500 scale-[1.01] opacity-100' : isPast ? 'opacity-30' : 'opacity-70'
                         }`;
 
@@ -1437,62 +1405,16 @@
                         row.innerHTML = `
                             <div class="flex items-center space-x-2">
                                 ${isActive ? '<span class="flex h-1.5 w-1.5 relative"><span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span><span class="relative inline-flex rounded-full h-1.5 w-1.5 bg-indigo-500"></span></span>' : ''}
-                                <span class="font-bold scale-text-xs">${absoluteTimeString}</span>
-                                <span class="scale-text-xs font-semibold truncate max-w-[150px]">${item.task}</span>
+                                <span class="font-bold text-xs">${absoluteTimeString}</span>
+                                <span class="text-xs font-semibold truncate max-w-[200px]">${item.task}</span>
                             </div>
-                            <span class="scale-text-xs opacity-40 font-black">+${item.offset}m</span>
+                            <span class="text-xs opacity-40 font-black">+${item.offset}m</span>
                         `;
 
                         liveList.appendChild(row);
                     });
                 }
             }
-
-            // PROPORTIONAL LAYOUT SCALING FIXED:
-            // Adjusts all sub-agenda heights, text layers, margins, icons, and gaps proportionately
-            widget.onResize = () => {
-                const scale = Math.min(widget.w / 420, widget.h / 480);
-                el.style.setProperty('--scale', scale);
-                
-                const titleHeader = container.querySelector(`#tt-title-${widget.id}`);
-                if (titleHeader) titleHeader.style.fontSize = `${scale * 12}px`;
-                
-                const livePeriodTitle = container.querySelector(`#live-period-title-${widget.id}`);
-                const liveStatusDesc = container.querySelector(`#live-status-desc-${widget.id}`);
-                if (livePeriodTitle) livePeriodTitle.style.fontSize = `${scale * 12}px`;
-                if (liveStatusDesc) liveStatusDesc.style.fontSize = `${scale * 14}px`;
-
-                container.querySelectorAll('.scale-p-3').forEach(item => {
-                    item.style.padding = `${Math.max(4, 12 * scale)}px`;
-                });
-                container.querySelectorAll('.scale-p-2').forEach(item => {
-                    item.style.padding = `${Math.max(4, 10 * scale)}px`;
-                });
-                container.querySelectorAll('.scale-p-1').forEach(item => {
-                    item.style.padding = `${Math.max(2, 6 * scale)}px`;
-                });
-                container.querySelectorAll('.scale-gap-2').forEach(item => {
-                    item.style.gap = `${Math.max(2, 8 * scale)}px`;
-                });
-                container.querySelectorAll('.scale-gap-3').forEach(item => {
-                    item.style.gap = `${Math.max(3, 12 * scale)}px`;
-                });
-                container.querySelectorAll('.scale-text-xs').forEach(item => {
-                    item.style.fontSize = `${Math.max(8, 12 * scale)}px`;
-                });
-                container.querySelectorAll('.scale-text-sm').forEach(item => {
-                    const computedInpSize = `${Math.max(9, 14 * scale)}px`;
-                    item.style.fontSize = computedInpSize;
-                    item.querySelectorAll('input').forEach(inp => inp.style.fontSize = computedInpSize);
-                });
-                container.querySelectorAll('i').forEach(icon => {
-                    const iconSize = Math.max(10, 16 * scale);
-                    icon.style.width = `${iconSize}px`;
-                    icon.style.height = `${iconSize}px`;
-                });
-                
-                updateLiveState();
-            };
 
             renderLayout();
             const subTimer = setInterval(updateLiveState, 10000); 
@@ -1516,21 +1438,21 @@
                 
                 if (showSelectorGrid) {
                     const gridContainer = document.createElement('div');
-                    gridContainer.className = "flex flex-col justify-between h-full select-none scale-gap-2";
+                    gridContainer.className = "flex flex-col justify-between h-full select-none gap-2 p-4";
                     gridContainer.innerHTML = `
-                        <div class="grid grid-cols-2 scale-gap-2" id="sym-grid-${widget.id}">
+                        <div class="grid grid-cols-2 gap-2" id="sym-grid-${widget.id}">
                             ${symbols.map((sym, i) => {
                                 const active = i === current;
                                 return `
                                     <button class="sym-btn p-3 border rounded-2xl flex flex-col items-center justify-center text-center transition-all duration-300 ${active ? `${sym.color} ring-2 scale-105 shadow-md border-transparent` : 'border-black/10 opacity-60 hover:opacity-100 hover:bg-black/5'}" data-index="${i}">
                                         <i data-lucide="${sym.icon}" class="w-8 h-8 mb-2"></i>
-                                        <div class="scale-text-xs font-black uppercase tracking-wider">${sym.label}</div>
+                                        <div class="text-xs font-black uppercase tracking-wider">${sym.label}</div>
                                     </button>
                                 `;
                             }).join('')}
                         </div>
                         <div class="mt-2 text-center bg-black/5 p-1.5 rounded-lg border border-dashed border-black/20">
-                            <p class="scale-text-xs font-bold opacity-60">Choose standard classroom rules</p>
+                            <p class="text-xs font-bold opacity-60">Choose standard classroom rules</p>
                         </div>
                     `;
 
@@ -1544,20 +1466,19 @@
                             widget.data.index = current;
                             widget.data.showSelectorGrid = showSelectorGrid;
                             render();
-                            if (widget.onResize) widget.onResize();
                         };
                     });
 
                 } else {
                     const sym = symbols[current];
                     const focusCard = document.createElement('button');
-                    focusCard.className = `w-full h-full flex flex-col items-center justify-center text-center scale-p-5 border rounded-[1.5rem] transition-all duration-500 hover:scale-[1.01] active:scale-[0.99] cursor-pointer ${sym.color} border-transparent ring-2 ring-indigo-400 shadow-xl`;
+                    focusCard.className = `w-full h-full flex flex-col items-center justify-center text-center p-5 border rounded-[1.5rem] transition-all duration-500 hover:scale-[1.01] active:scale-[0.99] cursor-pointer ${sym.color} border-transparent ring-2 ring-indigo-400 shadow-xl`;
                     
                     focusCard.innerHTML = `
                         <div class="flex-grow flex flex-col items-center justify-center">
                             <i id="sym-focus-icon-${widget.id}" data-lucide="${sym.icon}" class="w-16 h-16 mb-2 animate-bounce"></i>
-                            <h2 id="sym-focus-label-${widget.id}" class="scale-text-3xl font-black uppercase tracking-wider mb-1">${sym.label}</h2>
-                            <p id="sym-focus-desc-${widget.id}" class="scale-text-sm font-semibold opacity-80 max-w-[240px] leading-snug mx-auto">${sym.desc}</p>
+                            <h2 id="sym-focus-label-${widget.id}" class="text-3xl font-black uppercase tracking-wider mb-1">${sym.label}</h2>
+                            <p id="sym-focus-desc-${widget.id}" class="text-sm font-semibold opacity-80 max-w-[240px] leading-snug mx-auto">${sym.desc}</p>
                         </div>
                         <span class="widget-controls text-[8px] font-bold uppercase tracking-widest text-indigo-600 bg-white/50 backdrop-blur px-2.5 py-1 rounded-lg mt-2 border border-indigo-200">Click to Change Symbol</span>
                     `;
@@ -1566,7 +1487,6 @@
                         showSelectorGrid = true; 
                         widget.data.showSelectorGrid = showSelectorGrid;
                         render();
-                        if (widget.onResize) widget.onResize();
                     };
 
                     container.appendChild(focusCard);
@@ -1574,35 +1494,18 @@
                 }
             }
 
-            widget.onResize = () => {
-                const scale = Math.min(widget.w / 320, widget.h / 340);
-                el.style.setProperty('--scale', scale);
-                
-                const focusIcon = container.querySelector(`#sym-focus-icon-${widget.id}`);
-                const focusLabel = container.querySelector(`#sym-focus-label-${widget.id}`);
-                const focusDesc = container.querySelector(`#sym-focus-desc-${widget.id}`);
-                
-                if (focusIcon) {
-                    const iconSize = Math.max(36, 64 * scale);
-                    focusIcon.style.width = `${iconSize}px`;
-                    focusIcon.style.height = `${iconSize}px`;
-                }
-                if (focusLabel) focusLabel.style.fontSize = `${Math.max(16, 32 * scale)}px`;
-                if (focusDesc) focusDesc.style.fontSize = `${Math.max(10, 12 * scale)}px`;
-            };
-
             render();
             return null;
         }
 
-        // --- 6. TEXT WIDGET (EDITABLE DIV WITH COMPRESSED CLIPBOARD IMAGE PASTING) ---
+        // --- 6. TEXT WIDGET ---
         function renderText(widget, container) {
             let baseSize = widget.data.baseSize || 18;
             let align = widget.data.alignment || 'left';
             let stickyColor = widget.data.stickyColor || '';
 
             container.innerHTML = `
-                <div class="flex flex-col h-full w-full justify-between">
+                <div class="flex flex-col h-full w-full justify-between p-4 relative">
                     <div class="widget-controls flex flex-wrap items-center justify-between mb-2 border-b border-black/10 pb-1 text-[9px] font-bold uppercase tracking-wider opacity-60 gap-y-1 select-none">
                         <div class="flex items-center space-x-2">
                             <span>Base Size:</span>
@@ -1621,7 +1524,6 @@
                             <button data-color="bg-emerald-100 border-emerald-300 text-emerald-950 shadow-sm" class="w-4 h-4 rounded-full bg-emerald-200 border border-emerald-400" title="Sticky Green"></button>
                         </div>
                     </div>
-                    <!-- Overhauled to a contenteditable div for inline text editing + image pastability -->
                     <div id="txt-${widget.id}" contenteditable="true" class="w-full flex-grow bg-transparent outline-none leading-relaxed font-medium overflow-y-auto break-words min-h-[100px]" placeholder="Type instructions or paste images here..."></div>
                 </div>
             `;
@@ -1641,24 +1543,10 @@
 
             if (stickyColor) updateStickyColor(stickyColor);
 
-            function updateSize() {
-                const scale = widget.w / 400;
-                const calculatedSize = Math.max(10, baseSize * scale);
-                txt.style.fontSize = `${calculatedSize}px`;
-                
-                // Dynamically scale inline pasted images so they resize together with the text box
-                txt.querySelectorAll('img').forEach(img => {
-                    img.style.maxHeight = `${calculatedSize * 8}px`; 
-                });
-            }
-
-            // Sync structural changes instantly
             txt.addEventListener('input', () => { widget.data.text = txt.innerHTML; });
             txt.addEventListener('blur', () => { widget.data.text = txt.innerHTML; });
 
-            // INLINE IMAGE PASTING INTERCEPT ENGINE:
-            // Intercepts paste events, captures files, scales and encodes to low-overhead JPEG 
-            // format to keep share links extremely light and safe.
+            // Robust Base64 Image Compression Paste Interceptor
             txt.addEventListener('paste', (e) => {
                 const items = (e.clipboardData || e.originalEvent.clipboardData).items;
                 for (let i = 0; i < items.length; i++) {
@@ -1670,7 +1558,7 @@
                             const img = new Image();
                             img.onload = function() {
                                 const canvas = document.createElement('canvas');
-                                const maxDim = 320; // safe coordinate dimensions for inline presenter
+                                const maxDim = 500; 
                                 let width = img.width;
                                 let height = img.height;
                                 if (width > height) {
@@ -1689,14 +1577,14 @@
                                 const ctx = canvas.getContext('2d');
                                 ctx.drawImage(img, 0, 0, width, height);
                                 
-                                // Low quality JPEG outputs are super light (~15kb) preserving short hash URL limits
-                                const resizedUrl = canvas.toDataURL('image/jpeg', 0.55); 
+                                const resizedUrl = canvas.toDataURL('image/jpeg', 0.45); 
 
                                 const imgEl = document.createElement('img');
                                 imgEl.src = resizedUrl;
-                                imgEl.className = "inline-block max-w-full h-auto rounded-xl my-2 border border-black/10 shadow-md transition-all";
+                                imgEl.className = "inline-block rounded-xl my-2 border border-black/10 shadow-md transition-all";
+                                imgEl.style.maxWidth = "90%";
+                                imgEl.style.height = "auto";
                                 
-                                // Insert image cleanly at current caret position
                                 const selection = window.getSelection();
                                 if (selection.rangeCount) {
                                     const range = selection.getRangeAt(0);
@@ -1710,7 +1598,6 @@
                                 }
                                 
                                 widget.data.text = txt.innerHTML;
-                                updateSize();
                             };
                             img.src = event.target.result;
                         };
@@ -1720,9 +1607,9 @@
             });
 
             container.querySelector(`#fs-${widget.id}`).addEventListener('input', (e) => {
-                baseSize = e.target.value;
+                baseSize = parseInt(e.target.value);
                 widget.data.baseSize = baseSize;
-                updateSize();
+                txt.style.fontSize = `${baseSize}px`;
             });
 
             const alignBtns = container.querySelectorAll(`#align-${widget.id} button`);
@@ -1743,11 +1630,8 @@
                 };
             });
 
-            widget.onResize = () => {
-                const scale = Math.min(widget.w / 400, widget.h / 320);
-                el.style.setProperty('--scale', scale);
-                updateSize(); 
-            };
+            // Set initial font style on load
+            txt.style.fontSize = `${baseSize}px`;
 
             return null;
         }
@@ -1809,6 +1693,7 @@
             }
         }
 
+        // Optimization: Rounding points to keep JSON payloads highly compact and link share limits secure
         function redrawGlobal() {
             globalCtx.clearRect(0, 0, globalCanvas.width, globalCanvas.height);
             globalCtx.save();
@@ -1861,7 +1746,7 @@
 
         globalCanvas.addEventListener('pointerdown', (e) => {
             isGlobalDrawing = true;
-            startPoint = {x: e.clientX, y: e.clientY};
+            startPoint = {x: Math.round(e.clientX), y: Math.round(e.clientY)};
             
             currentGlobalPath = { 
                 type: drawType,
@@ -1891,7 +1776,7 @@
             if (drawType === 'freehand' || drawType === 'eraser') {
                 const last = currentGlobalPath.points[currentGlobalPath.points.length - 1];
                 if(Math.hypot(e.clientX - last.x, e.clientY - last.y) > 3) {
-                    currentGlobalPath.points.push({x: e.clientX, y: e.clientY});
+                    currentGlobalPath.points.push({x: Math.round(e.clientX), y: Math.round(e.clientY)});
                     globalCtx.lineTo(e.clientX, e.clientY);
                     globalCtx.stroke();
                 }
@@ -1899,7 +1784,7 @@
                 redrawGlobal();
                 globalCtx.save();
                 globalCtx.globalCompositeOperation = 'source-over';
-                drawShape(globalCtx, drawType, startPoint, {x: e.clientX, y: e.clientY}, globalColor, drawThickness);
+                drawShape(globalCtx, drawType, startPoint, {x: Math.round(e.clientX), y: Math.round(e.clientY)}, globalColor, drawThickness);
                 globalCtx.restore();
             }
         });
@@ -1908,7 +1793,7 @@
             if(isGlobalDrawing) {
                 isGlobalDrawing = false;
                 if (drawType !== 'freehand' && drawType !== 'eraser') {
-                    currentGlobalPath.points.push({x: e.clientX, y: e.clientY});
+                    currentGlobalPath.points.push({x: Math.round(e.clientX), y: Math.round(e.clientY)});
                 }
                 State.globalPaths.push(currentGlobalPath);
                 redrawGlobal();
