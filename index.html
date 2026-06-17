@@ -8,8 +8,8 @@
     <!-- Favicon -->
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>👨‍🏫</text></svg>">
 
-    <!-- PWA Manifest Link -->
-    <link rel="manifest" href='data:application/manifest+json,{"name":"Modern Classroom Board","short_name":"ClassroomBoard","start_url":".","display":"standalone","background_color":"#0f172a","theme_color":"#4f46e5","icons":[{"src":"https://cdn-icons-png.flaticon.com/512/482/482155.png","sizes":"512x512","type":"image/png"}]}'>
+    <!-- Secure Base64 PWA Manifest -->
+    <link rel="manifest" href="data:application/manifest+json;base64,eyJuYW1lIjoiTW9kZXJuIENsYXNzcm9vbSBCb2FyZCIsInNob3J0X25hbWUiOiJDbGFzc3Jvb21Cb2FyZCIsInN0YXJ0X3VybCI6Ii4iLCJkaXNwbGF5Ijoic3RhbmRhbG9uZSIsImJhY2tncm91bmRfY29sb3IiOiIjMGYxNzJhIiwidGhlbWVfY29sb3IiOiIjNGY0NmU1IiwiaWNvbnMiOlt7InNyYyI6Imh0dHBzOi8vY2RuLWljb25zLXBuZy5mbGF0aWNvbi5jb20vNTEyLzQ4Mi80ODIxNTUucG5nIiwic2l6ZXMiOiI1MTJ4NTEyIiwidHlwZSI6ImltYWdlL3BuZyJ9XX0=">
 
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -112,7 +112,7 @@
         }
         .theme-transparent canvas { background: transparent !important; border-color: transparent !important; }
 
-        input:focus, textarea:focus { outline: none; }
+        input:focus, textarea:focus, [contenteditable]:focus { outline: none; }
         
         input[type=number]::-webkit-inner-spin-button, 
         input[type=number]::-webkit-outer-spin-button { 
@@ -200,10 +200,10 @@
             <div class="w-px h-6 bg-white/20 mx-2"></div>
 
             <div class="flex space-x-1">
-                <button onclick="setTheme('glass')" class="theme-btn px-3 py-1.5 text-xs font-black uppercase rounded-xl transition-all bg-white text-indigo-900 shadow-sm" data-theme="glass">Glass</button>
-                <button onclick="setTheme('light')" class="theme-btn px-3 py-1.5 text-xs font-black uppercase rounded-xl transition-all hover:bg-white/20" data-theme="light">Light</button>
-                <button onclick="setTheme('dark')" class="theme-btn px-3 py-1.5 text-xs font-black uppercase rounded-xl transition-all hover:bg-white/20" data-theme="dark">Dark</button>
-                <button onclick="setTheme('transparent')" class="theme-btn px-3 py-1.5 text-xs font-black uppercase rounded-xl transition-all hover:bg-white/20" data-theme="transparent">Ghost</button>
+                <button data-theme-btn="glass" class="theme-btn px-3 py-1.5 text-xs font-black uppercase rounded-xl transition-all bg-white text-indigo-900 shadow-sm">Glass</button>
+                <button data-theme-btn="light" class="theme-btn px-3 py-1.5 text-xs font-black uppercase rounded-xl transition-all hover:bg-white/20">Light</button>
+                <button data-theme-btn="dark" class="theme-btn px-3 py-1.5 text-xs font-black uppercase rounded-xl transition-all hover:bg-white/20">Dark</button>
+                <button data-theme-btn="transparent" class="theme-btn px-3 py-1.5 text-xs font-black uppercase rounded-xl transition-all hover:bg-white/20">Ghost</button>
             </div>
 
             <div class="w-px h-6 bg-white/20 mx-2"></div>
@@ -249,7 +249,6 @@
             <i data-lucide="pen-tool" class="w-4 h-4"></i> <span>Draw Mode</span>
         </div>
 
-        <!-- Color Swatches -->
         <div class="flex space-x-1 flex-shrink-0" id="global-colors">
             <button data-c="#ef4444" class="w-6 h-6 rounded-full bg-red-500 border-2 border-transparent border-white scale-110 shadow-md transition-transform" title="Red"></button>
             <button data-c="#3b82f6" class="w-6 h-6 rounded-full bg-blue-500 border-2 border-transparent transition-transform" title="Blue"></button>
@@ -261,7 +260,6 @@
 
         <div class="w-px h-6 bg-zinc-700"></div>
 
-        <!-- Vector Shape Tools -->
         <div class="flex items-center space-x-1 bg-zinc-800 p-1 rounded-xl flex-shrink-0" id="draw-shapes">
             <button data-t="freehand" class="shape-btn p-1.5 rounded-lg bg-indigo-600 text-white" title="Freehand Brush"><i data-lucide="pencil" class="w-4 h-4"></i></button>
             <button data-t="line" class="shape-btn p-1.5 rounded-lg text-zinc-400 hover:text-white" title="Straight Line"><i data-lucide="minus" class="w-4 h-4"></i></button>
@@ -273,7 +271,6 @@
 
         <div class="w-px h-6 bg-zinc-700"></div>
 
-        <!-- Brush Thickness -->
         <div class="flex items-center space-x-2 text-zinc-400 text-xs flex-shrink-0">
             <span>Size:</span>
             <input type="range" id="draw-thickness" min="2" max="25" value="5" class="w-20">
@@ -324,10 +321,10 @@
         </div>
     </div>
 
-    <!-- MAIN JAVASCRIPT LOGIC (DE-DUPLICATED AND LINEARLY STRUCTURED) -->
+    <!-- MAIN JAVASCRIPT LOGIC (STRICTLY ORDERED) -->
     <script>
         // ==========================================
-        // 1. CONSTANTS & GLOBAL STATE
+        // 1. GLOBALS & CONFIGURATION
         // ==========================================
         const BACKGROUNDS = [
             { id: 'bg1', type: 'image', url: 'https://images.unsplash.com/photo-1448375240586-882707db888b?auto=format&fit=crop&w=1920&q=80' },
@@ -361,18 +358,8 @@
             maxZ: 100
         };
 
-        // ==========================================
-        // 2. DOM CACHE
-        // ==========================================
-        const workspace = document.getElementById('workspace');
-        const emptyState = document.getElementById('empty-state');
-        const appBody = document.getElementById('app-body');
-        const bgOverlay = document.getElementById('bg-overlay');
-        const bgPanel = document.getElementById('bg-panel');
-        const globalCanvas = document.getElementById('global-canvas');
-        const globalCtx = globalCanvas.getContext('2d');
-        const drawToolbar = document.getElementById('draw-toolbar');
-        const bottomDock = document.getElementById('bottom-dock');
+        // DOM elements (populated on DOMContentLoaded)
+        let workspace, emptyState, appBody, bgOverlay, bgPanel, globalCanvas, globalCtx, drawToolbar, bottomDock;
 
         // Drawing Globals
         let isDrawMode = false;
@@ -384,12 +371,12 @@
         let startPoint = null;
 
         // ==========================================
-        // 3. UTILITIES & DATA ENCODERS
+        // 2. HELPER UTILITIES
         // ==========================================
         function generateId() { return Math.random().toString(36).substr(2, 9); }
 
         function checkEmptyState() {
-            emptyState.style.opacity = State.widgets.length === 0 ? '1' : '0';
+            if (emptyState) emptyState.style.opacity = State.widgets.length === 0 ? '1' : '0';
         }
 
         function playBuzzer() {
@@ -415,6 +402,9 @@
             } catch(e) {}
         }
 
+        // ==========================================
+        // 3. STATE SAVING & LOADING
+        // ==========================================
         function encodeState(state) {
             try {
                 const json = JSON.stringify(state);
@@ -474,6 +464,7 @@
             try {
                 const saved = decodeState(hash);
                 if (!saved) return;
+                
                 if (saved.theme) setTheme(saved.theme);
                 if (saved.background) applyBackground(saved.background);
                 if (saved.globalPaths) {
@@ -482,10 +473,13 @@
                 }
                 if (saved.widgets && Array.isArray(saved.widgets)) {
                     State.widgets = []; 
-                    workspace.innerHTML = ''; 
+                    if (workspace) workspace.innerHTML = ''; 
                     saved.widgets.forEach(w => addWidgetToDOM(w, true));
                 }
-            } catch (e) { console.error("URL Load failed", e); }
+            } catch (e) { 
+                console.error("URL Load failed", e); 
+                applyBackground(State.background);
+            }
         }
 
         // ==========================================
@@ -493,6 +487,8 @@
         // ==========================================
         function applyBackground(bg) {
             State.background = bg;
+            if (!appBody) return;
+            
             appBody.style.backgroundImage = '';
             appBody.style.backgroundColor = '';
             
@@ -501,10 +497,10 @@
             if (bg.type === 'image') {
                 appBody.style.backgroundImage = `url(${bg.url})`;
                 appBody.className = `${baseClass} bg-slate-900`;
-                bgOverlay.style.opacity = '1';
+                if(bgOverlay) bgOverlay.style.opacity = '1';
             } else if (bg.type === 'gradient') {
                 appBody.className = `${baseClass} ${bg.css}`;
-                bgOverlay.style.opacity = '0';
+                if(bgOverlay) bgOverlay.style.opacity = '0';
             } else if (bg.type === 'color') {
                 appBody.className = baseClass;
                 if (bg.css.includes('#')) {
@@ -513,14 +509,14 @@
                 } else {
                     appBody.className = `${baseClass} ${bg.css}`;
                 }
-                bgOverlay.style.opacity = '0';
+                if(bgOverlay) bgOverlay.style.opacity = '0';
             }
         }
 
         function setTheme(theme) {
             State.theme = theme;
             document.querySelectorAll('.theme-btn').forEach(btn => {
-                if (btn.dataset.theme === theme) {
+                if (btn.dataset.themeBtn === theme) {
                     btn.className = "theme-btn px-3 py-1.5 text-xs font-black uppercase rounded-xl transition-all bg-white text-indigo-900 shadow-sm";
                 } else {
                     btn.className = "theme-btn px-3 py-1.5 text-xs font-black uppercase rounded-xl transition-all text-white hover:bg-white/20";
@@ -537,6 +533,8 @@
 
         function initBackgroundPanel() {
             const grid = document.getElementById('bg-grid');
+            if(!grid) return;
+            
             grid.innerHTML = '';
             BACKGROUNDS.forEach(bg => {
                 const btn = document.createElement('button');
@@ -546,16 +544,6 @@
                 }
                 btn.onclick = () => applyBackground(bg);
                 grid.appendChild(btn);
-            });
-
-            document.getElementById('custom-bg-apply').addEventListener('click', () => {
-                const url = document.getElementById('custom-bg-input').value.trim();
-                if (url) {
-                    const customBg = { id: 'custom', type: 'image', url: url };
-                    applyBackground(customBg);
-                    document.getElementById('custom-bg-input').value = '';
-                    document.getElementById('bg-panel').classList.add('hidden');
-                }
             });
         }
 
@@ -1579,6 +1567,7 @@
         // 7. GLOBAL DRAWING / CANVAS ENGINE
         // ==========================================
         function syncGlobalCanvas() {
+            if (!globalCanvas) return;
             globalCanvas.width = window.innerWidth;
             globalCanvas.height = window.innerHeight;
             redrawGlobal();
@@ -1618,6 +1607,7 @@
         }
 
         function redrawGlobal() {
+            if (!globalCtx) return;
             globalCtx.clearRect(0, 0, globalCanvas.width, globalCanvas.height);
             globalCtx.save();
             
@@ -1670,23 +1660,48 @@
         // ==========================================
         // 8. INITIALIZATION & EVENT BINDINGS
         // ==========================================
-        window.addEventListener('load', () => {
-            
+        window.addEventListener('DOMContentLoaded', () => {
+            // Assign DOM variables safely
+            workspace = document.getElementById('workspace');
+            emptyState = document.getElementById('empty-state');
+            appBody = document.getElementById('app-body');
+            bgOverlay = document.getElementById('bg-overlay');
+            bgPanel = document.getElementById('bg-panel');
+            globalCanvas = document.getElementById('global-canvas');
+            globalCtx = globalCanvas.getContext('2d');
+            drawToolbar = document.getElementById('draw-toolbar');
+            bottomDock = document.getElementById('bottom-dock');
+
             // Layout setups
+            lucide.createIcons();
             syncGlobalCanvas();
             initBackgroundPanel();
             loadStateFromURL();
-            lucide.createIcons();
 
             // Window Resizing bindings
             window.addEventListener('resize', syncGlobalCanvas);
 
             // Dock Button actions
             document.querySelectorAll('.dock-btn').forEach(btn => {
-                btn.onclick = () => {
+                btn.addEventListener('click', () => {
                     const type = btn.dataset.type;
                     spawnWidget(type);
-                };
+                });
+            });
+
+            // Global UI Buttons
+            document.getElementById('btn-bg').addEventListener('click', () => bgPanel.classList.toggle('hidden'));
+            document.getElementById('close-bg').addEventListener('click', () => bgPanel.classList.add('hidden'));
+            
+            document.getElementById('btn-clear').addEventListener('click', () => {
+                workspace.innerHTML = '';
+                State.widgets = [];
+                checkEmptyState();
+            });
+
+            document.getElementById('btn-fullscreen').addEventListener('click', () => {
+                if (!document.fullscreenElement) document.documentElement.requestFullscreen();
+                else if (document.exitFullscreen) document.exitFullscreen();
             });
 
             // Global Canvas Event Binding
@@ -1751,38 +1766,38 @@
 
             // Draw Toolbar Colors
             document.querySelectorAll('#global-colors button').forEach(btn => {
-                btn.onclick = () => {
+                btn.addEventListener('click', () => {
                     globalColor = btn.dataset.c;
                     document.querySelectorAll('#global-colors button').forEach(b => b.classList.remove('border-white', 'scale-110'));
                     btn.classList.add('border-white', 'scale-110');
-                };
+                });
             });
 
             // Draw Toolbar Shapes
             document.querySelectorAll('#draw-shapes button').forEach(btn => {
-                btn.onclick = () => {
+                btn.addEventListener('click', () => {
                     drawType = btn.dataset.t;
                     document.querySelectorAll('#draw-shapes button').forEach(b => b.className = "shape-btn p-1.5 rounded-lg text-zinc-400 hover:text-white");
                     btn.className = "shape-btn p-1.5 rounded-lg bg-indigo-600 text-white";
-                };
+                });
             });
 
             // Draw Settings
-            document.getElementById('draw-thickness').oninput = (e) => {
+            document.getElementById('draw-thickness').addEventListener('input', (e) => {
                 drawThickness = parseInt(e.target.value);
-            };
+            });
 
-            document.getElementById('global-undo').onclick = () => {
+            document.getElementById('global-undo').addEventListener('click', () => {
                 State.globalPaths.pop();
                 redrawGlobal();
-            };
+            });
 
-            document.getElementById('global-clear').onclick = () => {
+            document.getElementById('global-clear').addEventListener('click', () => {
                 State.globalPaths = [];
                 redrawGlobal();
-            };
+            });
 
-            document.getElementById('global-exit').onclick = toggleDrawMode;
+            document.getElementById('global-exit').addEventListener('click', toggleDrawMode);
         });
 
         // PWA Offline registration 
