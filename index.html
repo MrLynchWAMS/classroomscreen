@@ -378,6 +378,32 @@
             emptyState.style.opacity = State.widgets.length === 0 ? '1' : '0';
         }
 
+        function playBuzzer() {
+            try {
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                if (!AudioContext) return;
+                const ctx = new AudioContext();
+                const playChime = (time, freq) => {
+                    const osc = ctx.createOscillator();
+                    const gain = ctx.createGain();
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(freq, time);
+                    gain.gain.setValueAtTime(0.3, time);
+                    gain.gain.exponentialRampToValueAtTime(0.001, time + 0.8);
+                    osc.connect(gain);
+                    gain.connect(ctx.destination);
+                    osc.start(time);
+                    osc.stop(time + 0.8);
+                };
+                playChime(ctx.currentTime, 523.25);
+                playChime(ctx.currentTime + 0.15, 659.25);
+                playChime(ctx.currentTime + 0.3, 783.99);
+            } catch(e) {}
+        }
+
+        // ==========================================
+        // URL ENCODING & SAVING (UNICODE COMPLIANT)
+        // ==========================================
         function encodeState(state) {
             try {
                 const json = JSON.stringify(state);
@@ -428,9 +454,94 @@
             };
         }
 
+        function loadStateFromURL() {
+            const hash = window.location.hash.substring(1);
+            if (!hash) {
+                applyBackground(State.background);
+                return;
+            }
+            try {
+                const saved = decodeState(hash);
+                if (!saved) return;
+                if (saved.theme) setTheme(saved.theme);
+                if (saved.background) applyBackground(saved.background);
+                if (saved.globalPaths) {
+                    State.globalPaths = saved.globalPaths;
+                    redrawGlobal();
+                }
+                if (saved.widgets && Array.isArray(saved.widgets)) {
+                    State.widgets = []; 
+                    workspace.innerHTML = ''; 
+                    saved.widgets.forEach(w => addWidgetToDOM(w, true));
+                }
+            } catch (e) { console.error("URL Load failed", e); }
+        }
+
+        document.getElementById('btn-save').addEventListener('click', () => {
+            const clean = getCleanState();
+            const encoded = encodeState(clean);
+            const url = `${window.location.origin}${window.location.pathname}#${encoded}`;
+            try {
+                const tempInput = document.createElement("input");
+                tempInput.value = url;
+                document.body.appendChild(tempInput);
+                tempInput.select();
+                document.execCommand("copy");
+                document.body.removeChild(tempInput);
+                window.location.hash = encoded;
+                
+                const txt = document.getElementById('save-text');
+                txt.innerText = "Link Copied!";
+                setTimeout(() => txt.innerText = "Save & Share", 3000);
+            } catch (e) { alert("Failed to copy link."); }
+        });
+
         // ==========================================
-        // THEMES & BACKGROUND MANAGERS
+        // UI INTERACTIONS
         // ==========================================
+        document.getElementById('btn-fullscreen').addEventListener('click', () => {
+            if (!document.fullscreenElement) document.documentElement.requestFullscreen();
+            else if (document.exitFullscreen) document.exitFullscreen();
+        });
+
+        document.getElementById('btn-clear').addEventListener('click', () => {
+            workspace.innerHTML = '';
+            State.widgets = [];
+            checkEmptyState();
+        });
+
+        const bgPanel = document.getElementById('bg-panel');
+        document.getElementById('btn-bg').addEventListener('click', () => {
+            bgPanel.classList.toggle('hidden');
+        });
+        document.getElementById('close-bg').addEventListener('click', () => {
+            bgPanel.classList.add('hidden');
+        });
+
+        function initBackgroundPanel() {
+            const grid = document.getElementById('bg-grid');
+            grid.innerHTML = '';
+            BACKGROUNDS.forEach(bg => {
+                const btn = document.createElement('button');
+                btn.className = `h-16 rounded-xl overflow-hidden border-2 border-transparent hover:scale-105 transition-transform ${bg.type === 'image' ? '' : bg.css}`;
+                if (bg.type === 'image') {
+                    btn.innerHTML = `<img src="${bg.url}" class="w-full h-full object-cover">`;
+                }
+                btn.onclick = () => applyBackground(bg);
+                grid.appendChild(btn);
+            });
+
+            document.getElementById('custom-bg-apply').addEventListener('click', () => {
+                const url = document.getElementById('custom-bg-input').value.trim();
+                if (url) {
+                    const customBg = { id: 'custom', type: 'image', url: url };
+                    applyBackground(customBg);
+                    document.getElementById('custom-bg-input').value = '';
+                    document.getElementById('bg-panel').classList.add('hidden');
+                }
+            });
+        }
+
         function applyBackground(bg) {
             State.background = bg;
             appBody.style.backgroundImage = '';
@@ -475,33 +586,216 @@
             });
         }
 
-        function initBackgroundPanel() {
-            const grid = document.getElementById('bg-grid');
-            grid.innerHTML = '';
-            BACKGROUNDS.forEach(bg => {
-                const btn = document.createElement('button');
-                btn.className = `h-16 rounded-xl overflow-hidden border-2 border-transparent hover:scale-105 transition-transform ${bg.type === 'image' ? '' : bg.css}`;
-                if (bg.type === 'image') {
-                    btn.innerHTML = `<img src="${bg.url}" class="w-full h-full object-cover">`;
-                }
-                btn.onclick = () => applyBackground(bg);
-                grid.appendChild(btn);
-            });
+        function spawnWidget(type) {
+            if (type === 'draw') {
+                toggleDrawMode();
+                return;
+            }
 
-            document.getElementById('custom-bg-apply').addEventListener('click', () => {
-                const url = document.getElementById('custom-bg-input').value.trim();
-                if (url) {
-                    const customBg = { id: 'custom', type: 'image', url: url };
-                    applyBackground(customBg);
-                    document.getElementById('custom-bg-input').value = '';
-                    document.getElementById('bg-panel').classList.add('hidden');
-                }
-            });
+            const d = defaults[type] || { w: 320, h: 320 };
+            const widget = {
+                id: generateId(),
+                type: type,
+                x: (window.innerWidth / 2) - (d.w / 2) + (Math.random() * 40 - 20),
+                y: (window.innerHeight / 2) - (d.h / 2) + (Math.random() * 40 - 20) - 50,
+                w: d.w,
+                h: d.h,
+                data: {}
+            };
+            addWidgetToDOM(widget, false);
         }
 
         // ==========================================
-        // INDIVIDUAL WIDGET CONTROLLERS
+        // WIDGET DOM MANAGEMENT & RESIZING Matrix
         // ==========================================
+        function addWidgetToDOM(widget, isLoad) {
+            if (!isLoad) {
+                State.widgets.push(widget);
+            } else {
+                if (!State.widgets.some(w => w.id === widget.id)) {
+                    State.widgets.push(widget);
+                }
+            }
+            
+            const el = document.createElement('div');
+            el.id = `widget-${widget.id}`;
+            el.className = `widget-wrapper pointer-events-auto absolute rounded-[1.5rem] flex flex-col overflow-hidden transition-shadow duration-300 theme-${State.theme} widget-anim`;
+            el.style.left = `${widget.x}px`;
+            el.style.top = `${widget.y}px`;
+            el.style.width = `${widget.w}px`;
+            el.style.height = `${widget.h}px`;
+            el.style.zIndex = ++State.maxZ;
+
+            const header = document.createElement('div');
+            header.className = "drag-handle h-10 flex flex-shrink-0 items-center justify-between px-4 cursor-grab active:cursor-grabbing border-b border-black/[0.05] bg-black/[0.03] hover:bg-black/[0.06] transition-colors select-none";
+            header.innerHTML = `
+                <div class="flex items-center space-x-2 opacity-50 pointer-events-none">
+                    <i data-lucide="grip-horizontal" class="w-4 h-4"></i>
+                    <span class="text-[10px] font-black uppercase tracking-widest">${widget.type}</span>
+                </div>
+                <div class="flex items-center space-x-1 z-10">
+                    <button class="minimize-btn p-1 hover:bg-black/10 rounded opacity-60 hover:opacity-100 transition-all" title="Collapse Window">
+                        <i data-lucide="minus" class="w-3.5 h-3.5"></i>
+                    </button>
+                    <button class="close-btn p-1.5 hover:bg-red-500 hover:text-white rounded-lg opacity-60 hover:opacity-100 transition-all">
+                        <i data-lucide="x" class="w-3 h-3"></i>
+                    </button>
+                </div>
+            `;
+
+            const content = document.createElement('div');
+            content.className = "widget-content flex-grow overflow-hidden relative w-full h-full";
+            
+            const def = defaults[widget.type];
+            const scaler = document.createElement('div');
+            scaler.id = `scaler-${widget.id}`;
+            scaler.className = "absolute origin-top-left flex flex-col justify-between";
+            scaler.style.width = `${def.contentW}px`;
+            scaler.style.height = `${def.contentH}px`;
+            
+            const cleanupFn = renderWidgetContent(widget, scaler);
+            content.appendChild(scaler);
+
+            const resizer = document.createElement('div');
+            resizer.className = "resize-handle absolute bottom-1 right-1 w-5 h-5 cursor-se-resize flex items-end justify-end group p-1 z-20";
+            resizer.innerHTML = `<svg width="8" height="8" viewBox="0 0 10 10" class="opacity-30 group-hover:opacity-100 transition-opacity fill-current"><line x1="10" y1="0" x2="0" y2="10" stroke="currentColor" stroke-width="1.5"/><line x1="10" y1="4" x2="4" y2="10" stroke="currentColor" stroke-width="1.5"/></svg>`;
+
+            el.appendChild(header);
+            el.appendChild(content);
+            el.appendChild(resizer);
+            workspace.appendChild(el);
+            
+            lucide.createIcons({ root: el });
+            checkEmptyState();
+
+            if (widget.data.collapsed) {
+                content.style.display = 'none';
+                resizer.style.display = 'none';
+                el.style.height = '40px';
+                header.querySelector('.minimize-btn').innerHTML = `<i data-lucide="square" class="w-3.5 h-3.5"></i>`;
+                lucide.createIcons({ root: header });
+            }
+
+            widget.onResize = () => {
+                if (widget.data.collapsed) return;
+                const d = defaults[widget.type];
+                const contentH = widget.h - 40; 
+                const scale = Math.min(widget.w / d.contentW, contentH / d.contentH);
+                
+                const dx = (widget.w - (d.contentW * scale)) / 2;
+                const dy = (contentH - (d.contentH * scale)) / 2;
+                
+                scaler.style.transform = `translate(${dx}px, ${dy}px) scale(${scale})`;
+                
+                if (widget.onInternalResize) widget.onInternalResize(scale);
+            };
+
+            header.querySelector('.minimize-btn').onclick = (e) => {
+                e.stopPropagation();
+                widget.data.collapsed = !widget.data.collapsed;
+                if (widget.data.collapsed) {
+                    content.style.display = 'none';
+                    resizer.style.display = 'none';
+                    el.style.height = '40px';
+                    header.querySelector('.minimize-btn').innerHTML = `<i data-lucide="square" class="w-3.5 h-3.5"></i>`;
+                } else {
+                    content.style.display = 'block';
+                    resizer.style.display = 'block';
+                    el.style.height = `${widget.h}px`;
+                    header.querySelector('.minimize-btn').innerHTML = `<i data-lucide="minus" class="w-3.5 h-3.5"></i>`;
+                    widget.onResize();
+                }
+                lucide.createIcons({ root: header });
+            };
+
+            el.addEventListener('mousedown', () => { el.style.zIndex = ++State.maxZ; });
+            el.addEventListener('touchstart', () => { el.style.zIndex = ++State.maxZ; }, {passive:true});
+
+            header.querySelector('.close-btn').onclick = (e) => {
+                e.stopPropagation();
+                if(cleanupFn) cleanupFn();
+                workspace.removeChild(el);
+                State.widgets = State.widgets.filter(w => w.id !== widget.id);
+                checkEmptyState();
+            };
+
+            let isDragging = false;
+            let dragStartX, dragStartY;
+            
+            header.addEventListener('pointerdown', (e) => {
+                if (e.target.closest('.close-btn') || e.target.closest('.minimize-btn')) return;
+                isDragging = true;
+                const rect = el.getBoundingClientRect();
+                dragStartX = e.clientX - rect.left;
+                dragStartY = e.clientY - rect.top;
+                header.classList.add('cursor-grabbing');
+                el.classList.remove('widget-anim'); 
+            });
+
+            let isResizing = false;
+            let resizeStartX, resizeStartY, startW, startH;
+
+            resizer.addEventListener('pointerdown', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                isResizing = true;
+                const rect = el.getBoundingClientRect();
+                startW = rect.width;
+                startH = rect.height;
+                resizeStartX = e.clientX;
+                resizeStartY = e.clientY;
+                el.classList.remove('widget-anim');
+            });
+
+            const onPointerMove = (e) => {
+                if (isDragging) {
+                    e.preventDefault();
+                    widget.x = e.clientX - dragStartX;
+                    widget.y = e.clientY - dragStartY;
+                    el.style.left = `${widget.x}px`;
+                    el.style.top = `${widget.y}px`;
+                } else if (isResizing) {
+                    e.preventDefault();
+                    widget.w = Math.max(250, startW + (e.clientX - resizeStartX));
+                    widget.h = Math.max(160, startH + (e.clientY - resizeStartY));
+                    el.style.width = `${widget.w}px`;
+                    el.style.height = `${widget.h}px`;
+                    widget.onResize();
+                }
+            };
+
+            const onPointerUp = () => {
+                if (isDragging) {
+                    isDragging = false;
+                    header.classList.remove('cursor-grabbing');
+                }
+                if (isResizing) {
+                    isResizing = false;
+                }
+            };
+
+            document.addEventListener('pointermove', onPointerMove);
+            document.addEventListener('pointerup', onPointerUp);
+
+            el._cleanupDom = () => {
+                document.removeEventListener('pointermove', onPointerMove);
+                document.removeEventListener('pointerup', onPointerUp);
+            };
+
+            setTimeout(() => { widget.onResize(); }, 50);
+        }
+
+        // --- RENDER WIDGET DISPATCHER ---
+        function renderWidgetContent(widget, container) {
+            switch(widget.type) {
+                case 'clock': return renderClock(widget, container);
+                case 'timer': return renderTimer(widget, container);
+                case 'stopwatch': return renderStopwatch(widget, container);
+                case 'timetable': return renderTimetable(widget, container);
+                case 'symbols': return renderSymbols(widget, container);
+                case 'text': return renderText(widget, container);
+            }
+        }
 
         // --- 1. CLOCK ---
         function renderClock(widget, container) {
@@ -515,7 +809,7 @@
                     </div>
                     <canvas id="analog-view-${widget.id}" width="160" height="160" class="${widget.data.isDigital ? 'hidden' : ''}"></canvas>
                     
-                    <button id="toggle-${widget.id}" class="widget-controls mt-4 px-3 py-1.5 text-[10px] font-black uppercase rounded-lg hover:bg-black/5 opacity-50 hover:opacity-100 transition-all flex-shrink-0">
+                    <button id="toggle-${widget.id}" class="widget-controls mt-auto px-3 py-1.5 text-[10px] font-black uppercase rounded-lg hover:bg-black/5 opacity-50 hover:opacity-100 transition-all flex-shrink-0">
                         Switch Mode
                     </button>
                 </div>
@@ -537,7 +831,7 @@
                 ctx.beginPath();
                 ctx.arc(0, 0, radius - 6, 0, 2 * Math.PI);
                 ctx.strokeStyle = '#4f46e5';
-                ctx.lineWidth = 4;
+                ctx.lineWidth = Math.max(2, radius * 0.05);
                 ctx.stroke();
 
                 const hr = time.getHours();
@@ -556,9 +850,9 @@
                     ctx.rotate(-pos);
                 };
 
-                drawHand((hr % 12 * Math.PI / 6) + (min * Math.PI / 360), radius * 0.5, 4, 'currentColor');
-                drawHand((min * Math.PI / 30) + (sec * Math.PI / 1800), radius * 0.7, 3, 'currentColor');
-                drawHand(sec * Math.PI / 30, radius * 0.82, 2, '#ef4444');
+                drawHand((hr % 12 * Math.PI / 6) + (min * Math.PI / 360), radius * 0.5, Math.max(2, radius * 0.05), 'currentColor');
+                drawHand((min * Math.PI / 30) + (sec * Math.PI / 1800), radius * 0.7, Math.max(1.5, radius * 0.035), 'currentColor');
+                drawHand(sec * Math.PI / 30, radius * 0.82, Math.max(1, radius * 0.02), '#ef4444');
 
                 ctx.restore();
             }
@@ -1207,17 +1501,12 @@
 
         // --- 6. TEXT WIDGET ---
         function renderText(widget, container) {
-            let baseSize = widget.data.baseSize || 18;
             let align = widget.data.alignment || 'left';
             let stickyColor = widget.data.stickyColor || '';
 
             container.innerHTML = `
                 <div class="flex flex-col h-full w-full justify-between p-4 relative">
                     <div class="widget-controls flex flex-wrap items-center justify-between mb-2 border-b border-black/10 pb-1 text-[9px] font-bold uppercase tracking-wider opacity-60 gap-y-1 select-none">
-                        <div class="flex items-center space-x-2">
-                            <span>Base Size:</span>
-                            <input type="range" id="fs-${widget.id}" min="12" max="48" value="${baseSize}" class="w-16">
-                        </div>
                         <div class="flex space-x-1" id="align-${widget.id}">
                             <button data-align="left" class="px-1 py-0.5 rounded hover:bg-black/10 ${align==='left'?'bg-black/10':''}"><i data-lucide="align-left" class="w-3 h-3"></i></button>
                             <button data-align="center" class="px-1 py-0.5 rounded hover:bg-black/10 ${align==='center'?'bg-black/10':''}"><i data-lucide="align-center" class="w-3 h-3"></i></button>
@@ -1242,13 +1531,15 @@
             function updateStickyColor(colorClass) {
                 widget.data.stickyColor = colorClass;
                 const parent = container.closest('.widget-wrapper');
+                if (!parent) return; // safety
                 parent.classList.remove('bg-amber-100', 'border-amber-300', 'text-amber-950', 'bg-sky-100', 'border-sky-300', 'text-sky-950', 'bg-rose-100', 'border-rose-300', 'text-rose-950', 'bg-emerald-100', 'border-emerald-300', 'text-emerald-950');
                 if (colorClass) {
                     parent.classList.add(...colorClass.split(' '));
                 }
             }
 
-            if (stickyColor) updateStickyColor(stickyColor);
+            // Must use timeout to wait for the DOM wrapper to actually exist in tree
+            setTimeout(() => { if (stickyColor) updateStickyColor(stickyColor); }, 10);
 
             txt.addEventListener('input', () => { widget.data.text = txt.innerHTML; });
             txt.addEventListener('blur', () => { widget.data.text = txt.innerHTML; });
@@ -1313,12 +1604,6 @@
                 }
             });
 
-            container.querySelector(`#fs-${widget.id}`).addEventListener('input', (e) => {
-                baseSize = parseInt(e.target.value);
-                widget.data.baseSize = baseSize;
-                txt.style.fontSize = `${baseSize}px`;
-            });
-
             const alignBtns = container.querySelectorAll(`#align-${widget.id} button`);
             alignBtns.forEach(btn => {
                 btn.onclick = () => {
@@ -1337,220 +1622,7 @@
                 };
             });
 
-            txt.style.fontSize = `${baseSize}px`;
-
             return null;
-        }
-
-        // --- RENDER WIDGET DISPATCHER ---
-        function renderWidgetContent(widget, container) {
-            switch(widget.type) {
-                case 'clock': return renderClock(widget, container);
-                case 'timer': return renderTimer(widget, container);
-                case 'stopwatch': return renderStopwatch(widget, container);
-                case 'timetable': return renderTimetable(widget, container);
-                case 'symbols': return renderSymbols(widget, container);
-                case 'text': return renderText(widget, container);
-            }
-        }
-
-        // ==========================================
-        // WIDGET DOM MANAGEMENT & RESIZING Matrix
-        // ==========================================
-        function addWidgetToDOM(widget, isLoad) {
-            if (!isLoad) {
-                State.widgets.push(widget);
-            } else {
-                if (!State.widgets.some(w => w.id === widget.id)) {
-                    State.widgets.push(widget);
-                }
-            }
-            
-            const el = document.createElement('div');
-            el.id = `widget-${widget.id}`;
-            el.className = `widget-wrapper pointer-events-auto absolute rounded-[1.5rem] flex flex-col overflow-hidden transition-shadow duration-300 theme-${State.theme} widget-anim`;
-            el.style.left = `${widget.x}px`;
-            el.style.top = `${widget.y}px`;
-            el.style.width = `${widget.w}px`;
-            el.style.height = `${widget.h}px`;
-            el.style.zIndex = ++State.maxZ;
-
-            const header = document.createElement('div');
-            header.className = "drag-handle h-10 flex flex-shrink-0 items-center justify-between px-4 cursor-grab active:cursor-grabbing border-b border-black/[0.05] bg-black/[0.03] hover:bg-black/[0.06] transition-colors select-none";
-            header.innerHTML = `
-                <div class="flex items-center space-x-2 opacity-50 pointer-events-none">
-                    <i data-lucide="grip-horizontal" class="w-4 h-4"></i>
-                    <span class="text-[10px] font-black uppercase tracking-widest">${widget.type}</span>
-                </div>
-                <div class="flex items-center space-x-1 z-10">
-                    <button class="minimize-btn p-1 hover:bg-black/10 rounded opacity-60 hover:opacity-100 transition-all" title="Collapse Window">
-                        <i data-lucide="minus" class="w-3.5 h-3.5"></i>
-                    </button>
-                    <button class="close-btn p-1.5 hover:bg-red-500 hover:text-white rounded-lg opacity-60 hover:opacity-100 transition-all">
-                        <i data-lucide="x" class="w-3 h-3"></i>
-                    </button>
-                </div>
-            `;
-
-            const content = document.createElement('div');
-            content.className = "widget-content flex-grow overflow-hidden relative w-full h-full";
-            
-            const def = defaults[widget.type];
-            const scaler = document.createElement('div');
-            scaler.id = `scaler-${widget.id}`;
-            scaler.className = "absolute origin-top-left flex flex-col justify-between";
-            scaler.style.width = `${def.contentW}px`;
-            scaler.style.height = `${def.contentH}px`;
-            
-            const cleanupFn = renderWidgetContent(widget, scaler);
-            content.appendChild(scaler);
-
-            const resizer = document.createElement('div');
-            resizer.className = "resize-handle absolute bottom-1 right-1 w-5 h-5 cursor-se-resize flex items-end justify-end group p-1 z-20";
-            resizer.innerHTML = `<svg width="8" height="8" viewBox="0 0 10 10" class="opacity-30 group-hover:opacity-100 transition-opacity fill-current"><line x1="10" y1="0" x2="0" y2="10" stroke="currentColor" stroke-width="1.5"/><line x1="10" y1="4" x2="4" y2="10" stroke="currentColor" stroke-width="1.5"/></svg>`;
-
-            el.appendChild(header);
-            el.appendChild(content);
-            el.appendChild(resizer);
-            workspace.appendChild(el);
-            
-            lucide.createIcons({ root: el });
-            checkEmptyState();
-
-            if (widget.data.collapsed) {
-                content.style.display = 'none';
-                resizer.style.display = 'none';
-                el.style.height = '40px';
-                header.querySelector('.minimize-btn').innerHTML = `<i data-lucide="square" class="w-3.5 h-3.5"></i>`;
-                lucide.createIcons({ root: header });
-            }
-
-            widget.onResize = () => {
-                if (widget.data.collapsed) return;
-                const d = defaults[widget.type];
-                const contentH = widget.h - 40; 
-                const scale = Math.min(widget.w / d.contentW, contentH / d.contentH);
-                
-                const dx = (widget.w - (d.contentW * scale)) / 2;
-                const dy = (contentH - (d.contentH * scale)) / 2;
-                
-                scaler.style.transform = `translate(${dx}px, ${dy}px) scale(${scale})`;
-                
-                if (widget.onInternalResize) widget.onInternalResize(scale);
-            };
-
-            header.querySelector('.minimize-btn').onclick = (e) => {
-                e.stopPropagation();
-                widget.data.collapsed = !widget.data.collapsed;
-                if (widget.data.collapsed) {
-                    content.style.display = 'none';
-                    resizer.style.display = 'none';
-                    el.style.height = '40px';
-                    header.querySelector('.minimize-btn').innerHTML = `<i data-lucide="square" class="w-3.5 h-3.5"></i>`;
-                } else {
-                    content.style.display = 'block';
-                    resizer.style.display = 'block';
-                    el.style.height = `${widget.h}px`;
-                    header.querySelector('.minimize-btn').innerHTML = `<i data-lucide="minus" class="w-3.5 h-3.5"></i>`;
-                    widget.onResize();
-                }
-                lucide.createIcons({ root: header });
-            };
-
-            el.addEventListener('mousedown', () => { el.style.zIndex = ++State.maxZ; });
-            el.addEventListener('touchstart', () => { el.style.zIndex = ++State.maxZ; }, {passive:true});
-
-            header.querySelector('.close-btn').onclick = (e) => {
-                e.stopPropagation();
-                if(cleanupFn) cleanupFn();
-                workspace.removeChild(el);
-                State.widgets = State.widgets.filter(w => w.id !== widget.id);
-                checkEmptyState();
-            };
-
-            let isDragging = false;
-            let dragStartX, dragStartY;
-            
-            header.addEventListener('pointerdown', (e) => {
-                if (e.target.closest('.close-btn') || e.target.closest('.minimize-btn')) return;
-                isDragging = true;
-                const rect = el.getBoundingClientRect();
-                dragStartX = e.clientX - rect.left;
-                dragStartY = e.clientY - rect.top;
-                header.classList.add('cursor-grabbing');
-                el.classList.remove('widget-anim'); 
-            });
-
-            let isResizing = false;
-            let resizeStartX, resizeStartY, startW, startH;
-
-            resizer.addEventListener('pointerdown', (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                isResizing = true;
-                const rect = el.getBoundingClientRect();
-                startW = rect.width;
-                startH = rect.height;
-                resizeStartX = e.clientX;
-                resizeStartY = e.clientY;
-                el.classList.remove('widget-anim');
-            });
-
-            const onPointerMove = (e) => {
-                if (isDragging) {
-                    e.preventDefault();
-                    widget.x = e.clientX - dragStartX;
-                    widget.y = e.clientY - dragStartY;
-                    el.style.left = `${widget.x}px`;
-                    el.style.top = `${widget.y}px`;
-                } else if (isResizing) {
-                    e.preventDefault();
-                    widget.w = Math.max(250, startW + (e.clientX - resizeStartX));
-                    widget.h = Math.max(160, startH + (e.clientY - resizeStartY));
-                    el.style.width = `${widget.w}px`;
-                    el.style.height = `${widget.h}px`;
-                    widget.onResize();
-                }
-            };
-
-            const onPointerUp = () => {
-                if (isDragging) {
-                    isDragging = false;
-                    header.classList.remove('cursor-grabbing');
-                }
-                if (isResizing) {
-                    isResizing = false;
-                }
-            };
-
-            document.addEventListener('pointermove', onPointerMove);
-            document.addEventListener('pointerup', onPointerUp);
-
-            el._cleanupDom = () => {
-                document.removeEventListener('pointermove', onPointerMove);
-                document.removeEventListener('pointerup', onPointerUp);
-            };
-
-            setTimeout(() => { widget.onResize(); }, 50);
-        }
-
-        function spawnWidget(type) {
-            if (type === 'draw') {
-                toggleDrawMode();
-                return;
-            }
-
-            const d = defaults[type] || { w: 320, h: 320 };
-            const widget = {
-                id: generateId(),
-                type: type,
-                x: (window.innerWidth / 2) - (d.w / 2) + (Math.random() * 40 - 20),
-                y: (window.innerHeight / 2) - (d.h / 2) + (Math.random() * 40 - 20) - 50,
-                w: d.w,
-                h: d.h,
-                data: {}
-            };
-            addWidgetToDOM(widget, false);
         }
 
         // ==========================================
@@ -1575,7 +1647,6 @@
             redrawGlobal();
         }
         window.addEventListener('resize', syncGlobalCanvas);
-        setTimeout(syncGlobalCanvas, 100);
 
         function drawShape(ctx, type, p1, p2, color, size) {
             ctx.beginPath();
@@ -1722,17 +1793,11 @@
         // INITIALIZATION AND EVENT BINDINGS
         // ==========================================
         window.addEventListener('load', () => {
-            // Apply inline layout sizes
+            // Essential Initializations
+            lucide.createIcons();
+            syncGlobalCanvas();
             initBackgroundPanel();
             loadStateFromURL();
-
-            // Setup Tool button clicks
-            document.querySelectorAll('.dock-btn').forEach(btn => {
-                btn.onclick = () => {
-                    const type = btn.dataset.type;
-                    spawnWidget(type);
-                };
-            });
 
             // Toolbar action selections
             document.querySelectorAll('#global-colors button').forEach(btn => {
@@ -1768,7 +1833,7 @@
             document.getElementById('global-exit').onclick = toggleDrawMode;
         });
 
-        // Register basic Offline Service Worker
+        // Register basic Offline Service Worker (Optional for PWA functionality)
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
                 navigator.serviceWorker.register('./sw.js').catch(() => {});
