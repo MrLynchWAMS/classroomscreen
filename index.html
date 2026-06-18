@@ -243,6 +243,26 @@
         </div>
     </div>
 
+    <!-- Share Fallback Modal Dialog -->
+    <div id="share-modal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="bg-zinc-900 border border-zinc-700 p-6 rounded-2xl shadow-2xl max-w-lg w-full text-white">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="font-bold text-lg text-indigo-400 flex items-center space-x-2">
+                    <i data-lucide="link" class="w-5 h-5"></i>
+                    <span>Shareable Dashboard Link</span>
+                </h3>
+                <button id="close-share-modal" class="text-zinc-400 hover:text-white p-1 rounded-lg hover:bg-zinc-800 transition-colors">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <p class="text-xs text-zinc-300 mb-3">Copying directly to your clipboard was restricted by browser sandbox settings. Highlight and manually copy your link below:</p>
+            <textarea id="share-link-textarea" readonly class="w-full h-24 bg-zinc-800 border border-zinc-700 rounded-lg p-2.5 text-xs text-zinc-200 focus:outline-none focus:border-indigo-500 font-mono select-all mb-4"></textarea>
+            <div class="flex justify-end">
+                <button id="btn-copy-manual" class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs uppercase px-4 py-2.5 rounded-xl transition-all">Select All</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Draw Mode Toolbar -->
     <div id="draw-toolbar" class="hidden absolute bottom-8 left-1/2 transform -translate-x-1/2 z-40 bg-zinc-900/95 backdrop-blur-xl shadow-2xl rounded-2xl px-6 py-3 flex items-center space-x-4 border border-zinc-700 max-w-full overflow-x-auto">
         <div class="text-xs font-bold text-teal-400 uppercase tracking-widest flex items-center space-x-2 mr-2 flex-shrink-0">
@@ -362,7 +382,7 @@
         };
 
         // DOM elements (populated safely inside DOMContentLoaded)
-        let workspace, emptyState, appBody, bgOverlay, bgPanel, globalCanvas, globalCtx, drawToolbar, bottomDock;
+        let workspace, emptyState, appBody, bgOverlay, bgPanel, globalCanvas, globalCtx, drawToolbar, bottomDock, shareModal, shareLinkTextarea, btnCopyManual;
 
         // Drawing Globals
         let isDrawMode = false;
@@ -1315,7 +1335,7 @@
                                     }
                                 } else {
                                     if (height > maxDim) {
-                                        width = Math.round((width * maxDim) / height);
+                                        width = Math.round((height * maxDim) / height);
                                         height = maxDim;
                                     }
                                 }
@@ -1693,6 +1713,9 @@
             globalCtx = globalCanvas.getContext('2d');
             drawToolbar = document.getElementById('draw-toolbar');
             bottomDock = document.getElementById('bottom-dock');
+            shareModal = document.getElementById('share-modal');
+            shareLinkTextarea = document.getElementById('share-link-textarea');
+            btnCopyManual = document.getElementById('btn-copy-manual');
 
             // Layout setups
             lucide.createIcons();
@@ -1732,6 +1755,68 @@
                 if (!document.fullscreenElement) document.documentElement.requestFullscreen();
                 else if (document.exitFullscreen) document.exitFullscreen();
             });
+
+            // Double-Resilient Safe URL Save & Share binding inside DOMContentLoaded
+            document.getElementById('btn-save').addEventListener('click', () => {
+                const clean = getCleanState();
+                const encoded = encodeState(clean);
+                const url = `${window.location.origin}${window.location.pathname}#${encoded}`;
+                
+                // Track update states inside active address bar
+                window.location.hash = encoded;
+
+                // Robust Clipboard copy sequence
+                const tempTextArea = document.createElement("textarea");
+                tempTextArea.value = url;
+                tempTextArea.style.position = "fixed";
+                tempTextArea.style.top = "0";
+                tempTextArea.style.left = "0";
+                tempTextArea.style.opacity = "0";
+                document.body.appendChild(tempTextArea);
+                tempTextArea.focus();
+                tempTextArea.select();
+                tempTextArea.setSelectionRange(0, 99999); // Mobile Safari Support
+                
+                let copySuccessful = false;
+                try {
+                    copySuccessful = document.execCommand("copy");
+                } catch (e) {
+                    console.error("Direct copying restricted", e);
+                }
+                document.body.removeChild(tempTextArea);
+
+                const txt = document.getElementById('save-text');
+                
+                if (copySuccessful) {
+                    txt.innerText = "Link Copied!";
+                    setTimeout(() => txt.innerText = "Save & Share", 3000);
+                } else {
+                    // Launch elegant Glass Fallback Modal for Sandboxed IFrames
+                    if (shareModal && shareLinkTextarea) {
+                        shareLinkTextarea.value = url;
+                        shareModal.classList.remove('hidden');
+                        lucide.createIcons({ root: shareModal });
+                    }
+                }
+            });
+
+            // Close Share Modal Listener
+            document.getElementById('close-share-modal').addEventListener('click', () => {
+                if (shareModal) shareModal.classList.add('hidden');
+            });
+
+            // Select All Button inside Manual Copy Modal
+            if (btnCopyManual) {
+                btnCopyManual.addEventListener('click', () => {
+                    if (shareLinkTextarea) {
+                        shareLinkTextarea.select();
+                        shareLinkTextarea.setSelectionRange(0, 99999);
+                        document.execCommand("copy");
+                        btnCopyManual.innerText = "Selected!";
+                        setTimeout(() => btnCopyManual.innerText = "Select All", 2500);
+                    }
+                });
+            }
 
             // Global Canvas Event Binding
             globalCanvas.addEventListener('pointerdown', (e) => {
